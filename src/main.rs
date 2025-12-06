@@ -35,6 +35,7 @@ fn main() {
     let ascii_handler = thread::spawn(|| {
         (
             asciimodule::get_wide_logo_lines(),
+            asciimodule::get_medium_logo_lines(),
             asciimodule::get_narrow_logo_lines(),
         )
     });
@@ -70,10 +71,10 @@ fn main() {
         ],
     );
 
-    let (wide_logo, narrow_logo) = ascii_handler.join().expect("ASCII thread panicked");
+    let (wide_logo, medium_logo, narrow_logo) = ascii_handler.join().expect("ASCII thread panicked");
 
     print!(
         "{}",
-        renderer::draw_layout(&wide_logo, &narrow_logo, &[core, hardware, userspace])
+        renderer::draw_layout(&wide_logo, &medium_logo, &narrow_logo, &[core, hardware, userspace])
     );
 }

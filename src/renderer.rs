@@ -228,10 +228,20 @@ fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -> Ve
 }
 
 // Draw ASCII art and sections with adaptive layout.
-// Side-by-side if terminal is wide enough, stacked otherwise using narrow art.
-pub fn draw_layout(wide_art: &[String], narrow_art: &[String], sections: &[Section]) -> String {
+// Wide art side-by-side, medium art side-by-side, narrow art stacked, or no art if too short.
+pub fn draw_layout(
+    wide_art: &[String],
+    medium_art: &[String],
+    narrow_art: &[String],
+    sections: &[Section],
+) -> String {
     // Calculate widths beforehand (measure twice, cut once!)
     let wide_art_width = wide_art
+        .iter()
+        .map(|line| visible_len(line))
+        .max()
+        .unwrap_or(0);
+    let medium_art_width = medium_art
         .iter()
         .map(|line| visible_len(line))
         .max()
@@ -259,60 +269,95 @@ pub fn draw_layout(wide_art: &[String], narrow_art: &[String], sections: &[Secti
 
     // Time for some box math! Each box needs borders (2) and margins (2) = +4
     // Then we need a gap between them (+1)
-    let wide_box_width = wide_art_width + 4; // Art box with all the trimmings
-    let sections_box_width = sections_width + 4; // Info box with all the trimmings
-    let side_by_side_width = wide_box_width + 1 + sections_box_width; // Total width if we go side-by-side
+    let wide_box_width = wide_art_width + 4;
+    let medium_box_width = medium_art_width + 4;
+    let sections_box_width = sections_width + 4;
+    let wide_side_by_side = wide_box_width + 1 + sections_box_width;
+    let medium_side_by_side = medium_box_width + 1 + sections_box_width;
 
-    // How wide is your terminal, really though i need to know.
-    let term_width = get_terminal_size()
-        .map(|(cols, _)| cols as usize)
-        .unwrap_or(80); // Default to 80 if i can't figure it out
+    // How big is your terminal, really though i need to know.
+    let (term_width, term_height) = get_terminal_size()
+        .map(|(cols, rows)| (cols as usize, rows as usize))
+        .unwrap_or((80, 24)); // Default to 80x24 if i can't figure it out
+
+    // Calculate sections height: each section has content lines + 2 for borders
+    let sections_height: usize = sections
+        .iter()
+        .map(|section| section.lines.len() + 2)
+        .sum();
+
+    // Calculate narrow art height (content + 2 for borders)
+    let narrow_art_height = narrow_art.len() + 2;
 
     let mut output = String::new();
 
-    if term_width >= side_by_side_width {
+    if term_width >= wide_side_by_side {
         // We have room! Let's go side-by-side with the WIDE art (fancy mode activated)
         let sections_box = build_sections_lines(sections, None);
-        // Make the art box match the height of the sections box (no awkward gaps!)
         let target_height = sections_box.len();
         let wide_art_box = build_box(wide_art, None, None, Some(target_height), true);
 
         let max_lines = wide_art_box.len().max(sections_box.len());
 
-        // Print line by line, art on the left, info on the right
         for index in 0..max_lines {
-            // Left side (art)
             if index < wide_art_box.len() {
                 output.push_str(&wide_art_box[index]);
             } else {
-                // Pad with spaces if art box is shorter
                 let box_width = visible_len(&wide_art_box[0]);
                 output.push_str(&repeat_char(' ', box_width));
             }
 
-            output.push(' '); // A little breathing room between the boxes
+            output.push(' ');
 
-            // Right side (sections)
             if index < sections_box.len() {
                 output.push_str(&sections_box[index]);
             }
 
-            output.push('\n'); // Next line, please!
+            output.push('\n');
         }
-    } else {
-        // Not enough terminal width, stack em vertically in cozy mode
-        // Match widths so everything lines up nicely
+    } else if term_width >= medium_side_by_side {
+        // Medium art side-by-side (not wide enough for full art, but not narrow either)
+        let sections_box = build_sections_lines(sections, None);
+        let target_height = sections_box.len();
+        let medium_art_box = build_box(medium_art, None, None, Some(target_height), true);
+
+        let max_lines = medium_art_box.len().max(sections_box.len());
+
+        for index in 0..max_lines {
+            if index < medium_art_box.len() {
+                output.push_str(&medium_art_box[index]);
+            } else {
+                let box_width = visible_len(&medium_art_box[0]);
+                output.push_str(&repeat_char(' ', box_width));
+            }
+
+            output.push(' ');
+
+            if index < sections_box.len() {
+                output.push_str(&sections_box[index]);
+            }
+
+            output.push('\n');
+        }
+    } else if term_height >= sections_height + narrow_art_height {
+        // Stacked layout with narrow art on top
         let max_width = narrow_art_width.max(sections_width);
 
         let narrow_art_box = build_box(narrow_art, None, Some(max_width), None, true);
         let sections_box = build_sections_lines(sections, Some(max_width));
 
-        // Art goes up top
         for line in &narrow_art_box {
             output.push_str(line);
             output.push('\n');
         }
-        // Info goes down bottom
+        for line in &sections_box {
+            output.push_str(line);
+            output.push('\n');
+        }
+    } else {
+        // Terminal too short, skip the art
+        let sections_box = build_sections_lines(sections, None);
+
         for line in &sections_box {
             output.push_str(line);
             output.push('\n');
