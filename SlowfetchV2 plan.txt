@@ -1,0 +1,15 @@
+1. Slowfetch is terminal cli program that prints out system information such as the hardware configuration, software environment and a logo drawn in ascii art.
+
+2. Focus on execution speed and readability of code.
+
+3. From the start, create induvidual functions for each component of the fetch program. Example: The box drawing elements are all handled by one function, ascii and art drawing is handled by its own function.
+
+4. Employ the use of the concept of "content".
+    4a. Content is anything thing within a drawn box. Example: Center the "content" vertically and horizontally within the fetch output box which contains inforamtion.
+    4b. When prepairing content for render, induvidual parts of the content should be sepperated for ease of modification. 
+
+5. A fetch output line is infomation from functions in the modules file.
+   Each induvidual output should have an either an identifying name or ghlyph describing what information is on that line followed by a sepperator.
+   Example fetch output line featureing an indentifying name, a sepporator and then the information: CPU ~ AMD Ryzen 9 9950x 
+
+6. Always check current terminal width and height and change to preset layouts to adapt to size constraints.
