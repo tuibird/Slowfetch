@@ -6,6 +6,7 @@ Currently it displays a short list of system information and the slowfetch logo 
 
 As far as the hardware it supports, I run CashyOS which is Arch based. So its primarily designed around my setup. I've tested it on a good few terminals and ive tried to include compatibility for some common package managers like dpkg and rpm, but i never actually got around to testing them so there is non zero chance it panics or something stupid.
 
+Will be adding features slowly when as i feel like it.
 
 ## Documentation
 
