@@ -16,6 +16,12 @@ Currently there is no configuration of any sort, that is on the list of things t
 
 I currently won't accept PR's as this defeats the whole point of the project (sorry!).
 
+## Installation
+
+To install Slowfetch, pull the source and use the following command from the root of the project.
+
+`cargo install --path .`
+
 ## Example of the program and It's dynamic layout
 
 ![Slowfetch Screenshot](https://raw.githubusercontent.com/tuibird/Slowfetch/7a2145e931b85e2cea1d083e107514867aa169e9/example.png)
