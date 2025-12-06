@@ -1,5 +1,5 @@
-//! Hardware information modules for Slowfetch.
-//! Contains functions for CPU, memory, and GPU info.
+// Hardware information modules for Slowfetch.
+// Contains functions hardware, what else did you expect idiot
 
 use std::fs;
 use std::process::Command;
@@ -40,7 +40,7 @@ pub fn cpu() -> String {
     format!("{}{}", model, boost_clock)
 }
 
-/// Get memory usage as a visual bar (10 blocks = 100% usage).
+// Get memory usage as a visual bar, 10 blocks = 100% usage
 pub fn memory() -> String {
     let mut total = 0;
     let mut available = 0;
@@ -74,8 +74,8 @@ pub fn memory() -> String {
     "unknown".to_string()
 }
 
-/// Get the GPU model.
-/// Uses `lspci -mm` to get the exact name of the card.
+// Get the GPU model.
+// Uses lspci -mm to get the exact name of the card
 pub fn gpu() -> String {
     if let Ok(output) = Command::new("lspci").arg("-mm").output() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -121,7 +121,8 @@ pub fn gpu() -> String {
     "unknown".to_string()
 }
 
-/// Get storage usage for all physical disks.
+// Get storage usage for all physical disks.
+// and hopefully lump em together or something, idk i only have one ssd.
 pub fn storage() -> String {
     if let Ok(output) = Command::new("df").arg("-B1").output() {
         let stdout = String::from_utf8_lossy(&output.stdout);

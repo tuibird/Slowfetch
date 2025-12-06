@@ -1,4 +1,5 @@
-//! Terminal size detection for Slowfetch.
+// Terminal size detection for Slowfetch.
+// a lot of this code is from stack overflow.
 
 use std::os::unix::io::AsRawFd;
 
@@ -15,18 +16,15 @@ struct Winsize {
 // TIOCGWINSZ constant for Linux
 const TIOCGWINSZ: u64 = 0x5413;
 
-/// Get the terminal size as (columns, rows).
-/// Returns None if the terminal size cannot be determined.
+// Get the terminal size as, columns and rows
+// Returns None if the terminal size cannot be determined.
 pub fn get_terminal_size() -> Option<(u16, u16)> {
     use std::io::stdout;
 
     unsafe {
+        //uhoh
         let mut ws = std::mem::MaybeUninit::<Winsize>::zeroed();
         let fd = stdout().as_raw_fd();
-
-        // Use libc::ioctl via syscall - we need to use the syscall directly
-        // However, the cleanest approach is using terminal_size crate
-        // For now, let's use a fallback to environment variables
 
         #[cfg(target_os = "linux")]
         {
@@ -46,7 +44,7 @@ pub fn get_terminal_size() -> Option<(u16, u16)> {
 
 #[cfg(target_os = "linux")]
 unsafe fn libc_ioctl(fd: i32, request: u64, winsize: *mut Winsize) -> i32 {
-    // Direct syscall without libc
+    // Direct syscall
     let result: i64;
     unsafe {
         std::arch::asm!(

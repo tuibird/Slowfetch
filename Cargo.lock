@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "SlowfetchV2"
+name = "Slowfetch"
 version = "0.1.0"
 dependencies = [
  "inkline",

@@ -1,3 +1,5 @@
+//Slowfetch by Tūī
+
 mod asciimodule;
 mod coremodules;
 mod hardwaremodules;
@@ -33,7 +35,6 @@ fn main() {
         vec![
             ("Packages".to_string(), userspacemodules::packages()),
             ("Terminal".to_string(), userspacemodules::terminal()),
-            ("Font".to_string(), userspacemodules::terminal_font()),
             ("Shell".to_string(), userspacemodules::shell()),
             ("WM".to_string(), userspacemodules::wm()),
             ("UI".to_string(), userspacemodules::ui()),

@@ -1,5 +1,5 @@
-//! slowfetch rendering system
-//! prioritises speed and readability, expect to break things.
+// slowfetch rendering system
+// prioritises speed and readability, expect to break things.
 
 use crate::terminalsize::get_terminal_size;
 use tintify::TintColorize;
@@ -12,8 +12,8 @@ const BOX_BOTTOM_RIGHT: char = '╯';
 const BOX_HORIZONTAL: char = '─';
 const BOX_VERTICAL: char = '│';
 
-/// Strip ANSI codes to get visible width.
-/// Because colored text is a liar about its actual length!
+// Strip ANSI codes to get visible width.
+// Because colored text is a liar about its actual length!
 fn visible_len(text: &str) -> usize {
     let mut len = 0;
     let mut in_escape = false;
@@ -31,7 +31,7 @@ fn visible_len(text: &str) -> usize {
     len
 }
 
-/// A section of system info with a title and content lines (key, value).
+// A section of system info with a title and content lines (key, value).
 pub struct Section {
     pub title: String,
     pub lines: Vec<(String, String)>,
@@ -46,8 +46,8 @@ impl Section {
     }
 }
 
-/// Helper to create a string of repeated characters
-/// Like hitting your head against a wall
+// Helper to create a string of repeated characters
+// Like hitting your head against a wall
 fn repeat_char(character: char, count: usize) -> String {
     let mut result = String::with_capacity(count * character.len_utf8());
     for _ in 0..count {
@@ -56,7 +56,7 @@ fn repeat_char(character: char, count: usize) -> String {
     result
 }
 
-/// Generic function to build a box around content
+// Function to build a box around content
 fn build_box(
     lines: &[String],
     title: Option<&str>,
@@ -125,7 +125,7 @@ fn build_box(
     top.push_str(&BOX_TOP_RIGHT.to_string().bright_magenta().to_string());
     result.push(top);
 
-    // Vertical Padding (Top)
+    // Vertical Padding top
     if top_v_padding > 0 {
         let border = BOX_VERTICAL.to_string().bright_magenta().to_string();
         let empty_row = format!("{}{}{}", border, repeat_char(' ', max_width + 2), border);
@@ -160,7 +160,7 @@ fn build_box(
         result.push(row);
     }
 
-    // Vertical Padding (Bottom)
+    // Vertical Padding bottom
     if bottom_v_padding > 0 {
         let border = BOX_VERTICAL.to_string().bright_magenta().to_string();
         let empty_row = format!("{}{}{}", border, repeat_char(' ', max_width + 2), border);
@@ -183,10 +183,9 @@ fn build_box(
     result
 }
 
-/// Build section boxes as lines (returns Vec of lines, not joined string).
-/// This is where the magic happens - turning boring data into pretty boxes!
+// turning boring data into pretty boxes
 fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -> Vec<String> {
-    // 1. Format info lines with colors (make it pretty!)
+    // 1. Format info lines with colors (make it pretty
     let formatted_sections: Vec<Vec<String>> = sections
         .iter()
         .map(|section| {
@@ -199,7 +198,6 @@ fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -> Ve
         .collect();
 
     // 2. Calculate content width based on formatted lines
-    // We need to check BOTH titles and content to find the widest bit
     let content_width = sections
         .iter()
         .zip(formatted_sections.iter())
@@ -214,24 +212,23 @@ fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -> Ve
 
     let mut result = Vec::new();
 
-    // Build a box for each section and stack 'em up!
+    // Build a box for each section and stack em
     for (index, section) in sections.iter().enumerate() {
         let box_lines = build_box(
             &formatted_sections[index],
             Some(&section.title),
             Some(max_width),
             None,
-            false, // Left aligned content for sections (because we're not savages)
+            false, // Left aligned content
         );
-        result.extend(box_lines); // Add this box to our collection
+        result.extend(box_lines);
     }
 
     result
 }
 
-/// Draw ASCII art and sections with adaptive layout.
-/// Side-by-side if terminal is wide enough (using wide art), stacked otherwise (using narrow art).
-/// It's like responsive web design, but for your terminal!
+// Draw ASCII art and sections with adaptive layout.
+// Side-by-side if terminal is wide enough, stacked otherwise using narrow art.
 pub fn draw_layout(wide_art: &[String], narrow_art: &[String], sections: &[Section]) -> String {
     // Calculate widths beforehand (measure twice, cut once!)
     let wide_art_width = wide_art
@@ -246,7 +243,7 @@ pub fn draw_layout(wide_art: &[String], narrow_art: &[String], sections: &[Secti
         .unwrap_or(0);
 
     // Calculate sections width using the key-value structure
-    // We need to account for "Key: Value" format (hence the +2 for ": ")
+    // this is too account for "Key: Value" format, using +2 for ": "
     let sections_width = sections
         .iter()
         .flat_map(|section| {

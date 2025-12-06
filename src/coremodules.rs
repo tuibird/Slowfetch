@@ -1,11 +1,10 @@
-//! Core system information modules for Slowfetch.
-//! Contains functions for basic system info: user, host, OS, kernel, uptime.
+// Core system information modules for Slowfetch.
 
 use std::fs;
 
 use crate::helpers::read_first_line;
 
-/// Get the OS name from /etc/os-release.
+// Get the OS name from /etc/os-release.
 pub fn os() -> String {
     if let Ok(content) = fs::read_to_string("/etc/os-release") {
         for line in content.lines() {
@@ -20,12 +19,12 @@ pub fn os() -> String {
     "Linux".to_string()
 }
 
-/// Get the kernel version.
+// Get the kernel version
 pub fn kernel() -> String {
     read_first_line("/proc/sys/kernel/osrelease").unwrap_or_else(|| "unknown".to_string())
 }
 
-/// Get the system uptime.
+// Get the system uptime
 pub fn uptime() -> String {
     if let Ok(content) = fs::read_to_string("/proc/uptime") {
         if let Some(seconds_str) = content.split_whitespace().next() {

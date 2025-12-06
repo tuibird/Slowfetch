@@ -1,5 +1,4 @@
-//! Userspace information modules for Slowfetch.
-//! Contains functions for shell, packages, and window manager info.
+// Userspace/software/whatever information modules for Slowfetch
 
 use std::env;
 use std::fs;
@@ -21,7 +20,7 @@ pub fn shell() -> String {
         return shell_name;
     }
 
-    // Try to get version by running shell --version
+    // Try to get version by running shell --version, cross your fingers
     let version = Command::new(&shell_path)
         .arg("--version")
         .output()
@@ -39,7 +38,7 @@ pub fn shell() -> String {
                         .unwrap_or(false)
                 })
                 .map(|v| {
-                    // Clean up version string (remove trailing parentheses, etc.)
+                    // Clean up version string
                     v.split(|c: char| c == '(' || c == '-')
                         .next()
                         .unwrap_or(v)
@@ -53,12 +52,13 @@ pub fn shell() -> String {
     }
 }
 
-/// Get the total number of installed packages.
-/// Supports pacman (Arch), dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), and flatpak.
+// Get the total number of installed packages.
+// Supports pacman aka Arch, hopefully supports debian and fedora but idk, im not setting up a vm to test sorry
+// oh yeah and maybe flatpaks, same deal though untested.
 pub fn packages() -> String {
     let mut counts: Vec<String> = Vec::new();
 
-    // Pacman (Arch-based) - count directories in /var/lib/pacman/local/
+    // Pacman - count directories in /var/lib/pacman/local/
     if let Ok(entries) = fs::read_dir("/var/lib/pacman/local") {
         let count = entries.filter(|e| e.is_ok()).count();
         if count > 0 {
@@ -77,7 +77,7 @@ pub fn packages() -> String {
         }
     }
 
-    // RPM (Fedora/RHEL) - check if rpmdb exists
+    // RPM check if rpmdb exists
     if Path::new("/var/lib/rpm/rpmdb.sqlite").exists()
         || Path::new("/var/lib/rpm/Packages").exists()
     {
@@ -104,7 +104,7 @@ pub fn packages() -> String {
     }
 }
 
-/// Get the Window Manager
+// Get the Window Manager
 pub fn wm() -> String {
     let wm_name = if let Ok(wm) = env::var("XDG_CURRENT_DESKTOP") {
         wm
@@ -116,8 +116,8 @@ pub fn wm() -> String {
     capitalize(&wm_name)
 }
 
-/// Get the active terminal
-/// i hope this works with foot, because i aint installing that shit
+// Get the active terminal
+// i hope this works with foot, because i aint installing that shit
 pub fn terminal() -> String {
     // Check for specific terminal environment variables first
     if env::var("KITTY_PID").is_ok() {
@@ -141,7 +141,7 @@ pub fn terminal() -> String {
     capitalize(name)
 }
 
-/// Get the active UI/Shell (e.g., Noctalia Shell, Plasma, GNOME)
+// Get the active UI/Shell, i dont know what to call this shit because i already shell for the terminal shell
 pub fn ui() -> String {
     // Check for running UI processes
     if let Ok(output) = Command::new("ps").arg("-e").arg("-o").arg("args").output() {
@@ -161,20 +161,5 @@ pub fn ui() -> String {
         }
     }
 
-    "unknown".to_string()
-}
-
-/// Get the system monospace font using fontconfig
-pub fn terminal_font() -> String {
-    if let Ok(output) = Command::new("fc-match").arg("monospace").output() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        // Output format: filename: "Family" "Style"
-        // We want "Family"
-        if let Some(start) = stdout.find('"') {
-            if let Some(end) = stdout[start + 1..].find('"') {
-                return stdout[start + 1..start + 1 + end].to_string();
-            }
-        }
-    }
     "unknown".to_string()
 }

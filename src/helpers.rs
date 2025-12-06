@@ -1,16 +1,16 @@
-//! Helper functions for Slowfetch modules.
+// Helper functions
 
 use std::fs;
 
-/// Helper to read the first line of a file.
-/// Useful for reading single-value system files like /etc/hostname.
+// Helper to read the first line of a file, yeah ik this dumb dont @ me
 pub fn read_first_line(path: &str) -> Option<String> {
     fs::read_to_string(path)
         .ok()
         .and_then(|s| s.lines().next().map(|l| l.to_string()))
 }
 
-/// Helper to capitalize the first letter of a string.
+// Helper to capitalize the first letter of a string.
+// No im not importing a crate for this.
 pub fn capitalize(s: &str) -> String {
     let mut c = s.chars();
     match c.next() {
@@ -19,16 +19,16 @@ pub fn capitalize(s: &str) -> String {
     }
 }
 
-/// Helper to create the visual usage bar
+// Draw the damn bar
 pub fn create_bar(usage_percent: f64) -> String {
-    // Calculate filled blocks (10 blocks = 100%)
+    // Calculate filled blocks, 10 blocks = 100%
     let filled_blocks = ((usage_percent / 10.0).round() as usize).min(10);
 
     if filled_blocks == 0 {
-        // Empty bar: Start empty + 9 empty middle + End
+        // Empty bar = Start empty + 9 empty middle + End
         format!("{}", "".repeat(9))
     } else {
-        // Filled/Semi-filled: Start filled + (N-1) filled middle + remaining empty + End
+        // Filled/Semi-filled = Start filled + (N-1) filled middle + remaining empty + End
         let filled_middle = filled_blocks - 1;
         let empty_middle = 10 - filled_blocks;
         format!(
@@ -39,7 +39,7 @@ pub fn create_bar(usage_percent: f64) -> String {
     }
 }
 
-/// get the current Noctalia color scheme
+// get the current Noctalia color scheme, yeah this one is just for me :P
 pub fn get_noctalia_scheme() -> Option<String> {
     let home = std::env::var("HOME").ok()?;
     let path = format!("{}/.config/noctalia/settings.json", home);
