@@ -75,15 +75,43 @@ pub fn memory() -> String {
 }
 
 // Get the GPU model.
-// Tries glxinfo first for accurate name, falls back to sysfs + pci.ids
+// Tries vulkaninfo first for speed, then glxinfo for slightly less speed, then sysfs + pci.ids as a fallback
 pub fn gpu() -> String {
-    // Try glxinfo first, it gives clean gpu names
+    // Try vulkaninfo first - fastest option (~19ms)
+    if let Some(name) = gpu_from_vulkaninfo() {
+        return name;
+    }
+
+    // Try glxinfo as fallback (~52ms)
     if let Some(name) = gpu_from_glxinfo() {
         return name;
     }
 
-    // Fallback to sysfs + pci.ids lookup
+    // Fallback to sysfs + pci.ids lookup (~1ms but less accurate names)
     gpu_from_sysfs().unwrap_or_else(|| "unknown".to_string())
+}
+
+// Get GPU name from vulkaninfo
+fn gpu_from_vulkaninfo() -> Option<String> {
+    let output = Command::new("vulkaninfo")
+        .arg("--summary")
+        .output()
+        .ok()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    for line in stdout.lines() {
+        if line.contains("deviceName") {
+            // Format: "	deviceName         = AMD Radeon RX 9070 XT (RADV GFX1201)"
+            let name = line.split('=').nth(1)?.trim();
+            // Remove the parenthetical driver info
+            let name = name.split('(').next().unwrap_or(name).trim();
+            // Skip CPU/APU devices (they also show up in vulkaninfo)
+            if !name.is_empty() && !name.contains("Processor") && !name.contains("llvmpipe") {
+                return Some(name.to_string());
+            }
+        }
+    }
+    None
 }
 
 // Get GPU name from glxinfo (requires X11/Wayland with GL)
