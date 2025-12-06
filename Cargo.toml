@@ -1,0 +1,8 @@
+[package]
+name = "SlowfetchV2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+inkline = "1.0"
+tintify = "1.0"
