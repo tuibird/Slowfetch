@@ -12,43 +12,26 @@ use renderer::Section;
 use std::thread;
 
 fn main() {
-    // Spawn all threads concurrently - sections and ASCII art
-    let core_handler = thread::spawn(|| {
-        Section::new(
-            "Core",
-            vec![
-                ("OS".to_string(), coremodules::os()),
-                ("Kernel".to_string(), coremodules::kernel()),
-                ("Uptime".to_string(), coremodules::uptime()),
-            ],
-        )
-    });
+    // Spawn a thread for each individual info function for maximum parallelism
+    // Core modules
+    let os_handler = thread::spawn(coremodules::os);
+    let kernel_handler = thread::spawn(coremodules::kernel);
+    let uptime_handler = thread::spawn(coremodules::uptime);
 
-    let hardware_handler = thread::spawn(|| {
-        Section::new(
-            "Hardware",
-            vec![
-                ("CPU".to_string(), hardwaremodules::cpu()),
-                ("GPU".to_string(), hardwaremodules::gpu()),
-                ("Memory".to_string(), hardwaremodules::memory()),
-                ("Storage".to_string(), hardwaremodules::storage()),
-            ],
-        )
-    });
+    // Hardware modules
+    let cpu_handler = thread::spawn(hardwaremodules::cpu);
+    let gpu_handler = thread::spawn(hardwaremodules::gpu);
+    let memory_handler = thread::spawn(hardwaremodules::memory);
+    let storage_handler = thread::spawn(hardwaremodules::storage);
 
-    let userspace_handler = thread::spawn(|| {
-        Section::new(
-            "Userspace",
-            vec![
-                ("Packages".to_string(), userspacemodules::packages()),
-                ("Terminal".to_string(), userspacemodules::terminal()),
-                ("Shell".to_string(), userspacemodules::shell()),
-                ("WM".to_string(), userspacemodules::wm()),
-                ("UI".to_string(), userspacemodules::ui()),
-            ],
-        )
-    });
+    // Userspace modules
+    let packages_handler = thread::spawn(userspacemodules::packages);
+    let terminal_handler = thread::spawn(userspacemodules::terminal);
+    let shell_handler = thread::spawn(userspacemodules::shell);
+    let wm_handler = thread::spawn(userspacemodules::wm);
+    let ui_handler = thread::spawn(userspacemodules::ui);
 
+    // ASCII art
     let ascii_handler = thread::spawn(|| {
         (
             asciimodule::get_wide_logo_lines(),
@@ -56,10 +39,37 @@ fn main() {
         )
     });
 
-    // Wait for all threads to complete
-    let core = core_handler.join().expect("Core thread panicked");
-    let hardware = hardware_handler.join().expect("Hardware thread panicked");
-    let userspace = userspace_handler.join().expect("Userspace thread panicked");
+    // Collect results and build sections
+    let core = Section::new(
+        "Core",
+        vec![
+            ("OS".to_string(), os_handler.join().unwrap_or_else(|_| "error".into())),
+            ("Kernel".to_string(), kernel_handler.join().unwrap_or_else(|_| "error".into())),
+            ("Uptime".to_string(), uptime_handler.join().unwrap_or_else(|_| "error".into())),
+        ],
+    );
+
+    let hardware = Section::new(
+        "Hardware",
+        vec![
+            ("CPU".to_string(), cpu_handler.join().unwrap_or_else(|_| "error".into())),
+            ("GPU".to_string(), gpu_handler.join().unwrap_or_else(|_| "error".into())),
+            ("Memory".to_string(), memory_handler.join().unwrap_or_else(|_| "error".into())),
+            ("Storage".to_string(), storage_handler.join().unwrap_or_else(|_| "error".into())),
+        ],
+    );
+
+    let userspace = Section::new(
+        "Userspace",
+        vec![
+            ("Packages".to_string(), packages_handler.join().unwrap_or_else(|_| "error".into())),
+            ("Terminal".to_string(), terminal_handler.join().unwrap_or_else(|_| "error".into())),
+            ("Shell".to_string(), shell_handler.join().unwrap_or_else(|_| "error".into())),
+            ("WM".to_string(), wm_handler.join().unwrap_or_else(|_| "error".into())),
+            ("UI".to_string(), ui_handler.join().unwrap_or_else(|_| "error".into())),
+        ],
+    );
+
     let (wide_logo, narrow_logo) = ascii_handler.join().expect("ASCII thread panicked");
 
     print!(

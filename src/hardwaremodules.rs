@@ -75,50 +75,118 @@ pub fn memory() -> String {
 }
 
 // Get the GPU model.
-// Uses lspci -mm to get the exact name of the card
+// Tries glxinfo first for accurate name, falls back to sysfs + pci.ids
 pub fn gpu() -> String {
-    if let Ok(output) = Command::new("lspci").arg("-mm").output() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        for line in stdout.lines() {
-            if !line.contains("VGA") && !line.contains("3D") {
-                continue;
+    // Try glxinfo first, it gives clean gpu names
+    if let Some(name) = gpu_from_glxinfo() {
+        return name;
+    }
+
+    // Fallback to sysfs + pci.ids lookup
+    gpu_from_sysfs().unwrap_or_else(|| "unknown".to_string())
+}
+
+// Get GPU name from glxinfo (requires X11/Wayland with GL)
+fn gpu_from_glxinfo() -> Option<String> {
+    let output = Command::new("glxinfo").output().ok()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    for line in stdout.lines() {
+        if line.contains("OpenGL renderer") {
+            // Format: "OpenGL renderer string: AMD Radeon RX 9070 XT (radeonsi, ...)"
+            let renderer = line.split(':').nth(1)?.trim();
+            // Remove the parenthetical info if present
+            let name = renderer.split('(').next().unwrap_or(renderer).trim();
+            if !name.is_empty() && name != "llvmpipe" {
+                return Some(name.to_string());
             }
-
-            let parts: Vec<&str> = line.split('"').collect();
-            // 0=Slot, 1=Class, 3=Vendor, 5=Device, 7=SVendor, 9=SDevice
-            if parts.len() < 6 {
-                continue;
-            }
-
-            let vendor_raw = parts.get(3).copied().unwrap_or("");
-            let device_raw = parts.get(5).copied().unwrap_or("");
-            let s_device_raw = parts.get(9).copied().unwrap_or("");
-
-            // Helper to extract content between brackets: "Name [Model]" -> "Model"
-            fn in_brackets(s: &str) -> Option<&str> {
-                s.find('[').and_then(|start| {
-                    s.rfind(']')
-                        .map(|end| if start < end { &s[start + 1..end] } else { s })
-                })
-            }
-
-            // Vendor: Use content in brackets (first part if slashed), or first word
-            let vendor = in_brackets(vendor_raw)
-                .and_then(|s| s.split('/').next())
-                .unwrap_or_else(|| vendor_raw.split_whitespace().next().unwrap_or(vendor_raw));
-
-            // Device: Parse options from brackets, match against SDevice
-            let device_opts = in_brackets(device_raw).unwrap_or(device_raw);
-            let best_device = device_opts
-                .split('/')
-                .filter(|&opt| s_device_raw.contains(opt))
-                .last()
-                .unwrap_or_else(|| device_opts.split('/').next().unwrap_or(device_raw));
-
-            return format!("{} {}", vendor, best_device).trim().to_string();
         }
     }
-    "unknown".to_string()
+    None
+}
+
+// Get GPU name from sysfs + pci.ids database
+fn gpu_from_sysfs() -> Option<String> {
+    let drm_path = std::path::Path::new("/sys/class/drm");
+    if !drm_path.exists() {
+        return None;
+    }
+
+    // Load pci.ids database
+    let pci_ids = fs::read_to_string("/usr/share/hwdata/pci.ids")
+        .or_else(|_| fs::read_to_string("/usr/share/misc/pci.ids"))
+        .ok()?;
+
+    for entry in fs::read_dir(drm_path).ok()?.flatten() {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+
+        // Only process card entries, not card0-DP-1 etc
+        if !name_str.starts_with("card") || name_str.contains('-') {
+            continue;
+        }
+
+        let uevent_path = entry.path().join("device/uevent");
+        let uevent = fs::read_to_string(&uevent_path).ok()?;
+
+        // Parse PCI_ID from uevent (format: "1002:7550")
+        let pci_id_line = uevent.lines().find(|l| l.starts_with("PCI_ID="))?;
+        let pci_id = pci_id_line.trim_start_matches("PCI_ID=");
+        let parts: Vec<&str> = pci_id.split(':').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+
+        let vendor_id = parts[0].to_lowercase();
+        let device_id = parts[1].to_lowercase();
+
+        let vendor_name = lookup_pci_vendor(&pci_ids, &vendor_id);
+        let device_name = lookup_pci_device(&pci_ids, &vendor_id, &device_id)?;
+
+        // Extract the part in brackets if present
+        let display_name = device_name
+            .find('[')
+            .and_then(|start| device_name.rfind(']').map(|end| &device_name[start + 1..end]))
+            .unwrap_or(&device_name);
+
+        let vendor_short = vendor_name
+            .as_deref()
+            .and_then(|v| v.find('[').and_then(|start| v.rfind(']').map(|end| &v[start + 1..end])))
+            .and_then(|s| s.split('/').next())
+            .unwrap_or("GPU");
+
+        return Some(format!("{} {}", vendor_short, display_name));
+    }
+    None
+}
+
+fn lookup_pci_vendor(pci_ids: &str, vendor_id: &str) -> Option<String> {
+    for line in pci_ids.lines() {
+        if line.starts_with(vendor_id) && line.chars().nth(4) == Some(' ') {
+            return Some(line[4..].trim().to_string());
+        }
+    }
+    None
+}
+
+fn lookup_pci_device(pci_ids: &str, vendor_id: &str, device_id: &str) -> Option<String> {
+    let mut in_vendor = false;
+    for line in pci_ids.lines() {
+        if line.starts_with(vendor_id) && line.chars().nth(4) == Some(' ') {
+            in_vendor = true;
+            continue;
+        }
+        if in_vendor && !line.starts_with('\t') && !line.is_empty() && !line.starts_with('#') {
+            break;
+        }
+        if in_vendor && line.starts_with('\t') && !line.starts_with("\t\t") {
+            let trimmed = line.trim_start_matches('\t');
+            if trimmed.starts_with(device_id) && trimmed.chars().nth(4) == Some(' ') {
+                return Some(trimmed[4..].trim().to_string());
+            }
+        }
+    }
+    None
 }
 
 // Get storage usage for all physical disks.
