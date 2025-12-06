@@ -143,21 +143,33 @@ pub fn terminal() -> String {
 
 // Get the active UI/Shell, i dont know what to call this shit because i already shell for the terminal shell
 pub fn ui() -> String {
-    // Check for running UI processes
-    if let Ok(output) = Command::new("ps").arg("-e").arg("-o").arg("args").output() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.contains("noctalia-shell") {
-            let mut name = "Noctalia Shell".to_string();
-            if let Some(scheme) = get_noctalia_scheme() {
-                name = format!("{} ({})", name, capitalize(&scheme));
+    // Read /proc directly instead of spawning ps, saves like 3-4ms
+    let proc_path = Path::new("/proc");
+    if let Ok(entries) = fs::read_dir(proc_path) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            // Only check numeric directories (PIDs)
+            if !name.to_string_lossy().chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                continue;
             }
-            return name;
-        }
-        if stdout.contains("plasmashell") {
-            return "Plasma".to_string();
-        }
-        if stdout.contains("gnome-shell") {
-            return "Gnome".to_string();
+
+            let cmdline_path = entry.path().join("cmdline");
+            if let Ok(cmdline) = fs::read_to_string(&cmdline_path) {
+                if cmdline.contains("noctalia-shell") {
+                    let mut name = "Noctalia Shell".to_string();
+                    if let Some(scheme) = get_noctalia_scheme() {
+                        name = format!("{} ({})", name, capitalize(&scheme));
+                    }
+                    return name;
+                }
+                //i know this janky but idk
+                if cmdline.contains("plasmashell") {
+                    return "Plasma Shell".to_string();
+                }
+                if cmdline.contains("gnome-shell") {
+                    return "Gnome Shell".to_string();
+                }
+            }
         }
     }
 
