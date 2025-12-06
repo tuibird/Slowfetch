@@ -3,6 +3,12 @@ name = "Slowfetch"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+opt-level = 3
+lto = true  # Link Time Optimization
+debug = true
+codegen-units = 1  # Reduce the number of codegen units for more optimization
+
 [dependencies]
 inkline = "1.0"
 tintify = "1.0"
