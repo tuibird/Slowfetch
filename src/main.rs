@@ -1,6 +1,7 @@
 //Slowfetch by Tūī
 
 mod asciimodule;
+mod configloader;
 mod coremodules;
 mod hardwaremodules;
 mod helpers;
@@ -9,6 +10,7 @@ mod terminalsize;
 mod userspacemodules;
 
 use clap::Parser;
+use configloader::OsArtSetting;
 use renderer::Section;
 use std::thread;
 
@@ -23,7 +25,11 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
+
     // Spawn a thread for each individual info function for maximum parallelism
+    // Config loader
+    let config_handler = thread::spawn(configloader::load_config);
+
     // Core modules
     let os_handler = thread::spawn(coremodules::os);
     let kernel_handler = thread::spawn(coremodules::kernel);
@@ -83,23 +89,39 @@ fn main() {
     );
 
     let (wide_logo, medium_logo, narrow_logo) = ascii_handler.join().expect("ASCII thread panicked");
+    let config = config_handler.join().expect("Config thread panicked");
 
-    // If --os flag is set, try to use OS-specific art
-    let (wide, medium, narrow, smol) = if let Some(ref os_override) = args.os_art {
-        // Use override if provided, otherwise detect from OS
-        let os_name = if os_override.is_empty() {
-            core.lines.iter().find(|(k, _)| k == "OS").map(|(_, v)| v.as_str()).unwrap_or("")
+    // Determine OS art setting: CLI args override config
+    let os_art_setting = if let Some(ref os_override) = args.os_art {
+        if os_override.is_empty() {
+            OsArtSetting::Auto
         } else {
-            os_override.as_str()
-        };
-        if let Some(os_logo) = asciimodule::get_os_logo_lines(os_name) {
-            let smol_logo = asciimodule::get_os_logo_lines_smol(os_name);
-            (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
-        } else {
-            (wide_logo, medium_logo, narrow_logo, None)
+            OsArtSetting::Specific(os_override.clone())
         }
     } else {
-        (wide_logo, medium_logo, narrow_logo, None)
+        config.os_art
+    };
+
+    // Apply OS art setting
+    let (wide, medium, narrow, smol) = match os_art_setting {
+        OsArtSetting::Disabled => (wide_logo, medium_logo, narrow_logo, None),
+        OsArtSetting::Auto => {
+            let os_name = core.lines.iter().find(|(k, _)| k == "OS").map(|(_, v)| v.as_str()).unwrap_or("");
+            if let Some(os_logo) = asciimodule::get_os_logo_lines(os_name) {
+                let smol_logo = asciimodule::get_os_logo_lines_smol(os_name);
+                (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
+            } else {
+                (wide_logo, medium_logo, narrow_logo, None)
+            }
+        }
+        OsArtSetting::Specific(ref os_name) => {
+            if let Some(os_logo) = asciimodule::get_os_logo_lines(os_name) {
+                let smol_logo = asciimodule::get_os_logo_lines_smol(os_name);
+                (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
+            } else {
+                (wide_logo, medium_logo, narrow_logo, None)
+            }
+        }
     };
 
     print!(

@@ -1,0 +1,8 @@
+# Slowfetch Configuration
+
+[display]
+# Show OS-specific art instead of default Slowfetch logo
+# Set to true to auto-detect OS, or specify OS name (e.g. "arch", "fedora")
+# os_art = true
+# os_art = "arch"
+os_art = false
