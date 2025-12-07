@@ -5,13 +5,13 @@ use inkline::AsciiArt;
 use tintify::{AnsiColors, DynColors};
 
 // The ASCII art for the Slowfetch logo Wide version.
-const ASCII_ART_WIDE: &str = include_str!("assets/wide.txt");
+const ASCII_ART_WIDE: &str = include_str!("assets/default/wide.txt");
 
 // The ASCII art for the Slowfetch logo medium version.
-const ASCII_ART_MEDIUM: &str = include_str!("assets/medium.txt");
+const ASCII_ART_MEDIUM: &str = include_str!("assets/default/medium.txt");
 
 // The ASCII art for the Slowfetch logo narrow version.
-const ASCII_ART_NARROW: &str = include_str!("assets/narrow.txt");
+const ASCII_ART_NARROW: &str = include_str!("assets/default/narrow.txt");
 
 // color setup, yep.
 fn get_colors() -> &'static [DynColors] {
@@ -44,3 +44,30 @@ pub fn get_narrow_logo_lines() -> Vec<String> {
     let art = AsciiArt::new(ASCII_ART_NARROW, get_colors(), true);
     art.map(|line| line.to_string()).collect()
 }
+// coming soon
+
+/* pub fn get_arch_logo_lines() -> Vec<String> {
+    let art = AsciiArt::new(ASCII_ART_ARCH, get_colors(), true);
+    art.map(|line| line.to_string()).collect()
+}
+
+pub fn get_cachy_logo_lines() -> Vec<String> {
+    let art = AsciiArt::new(ASCII_ART_CACHY, get_colors(), true);
+    art.map(|line| line.to_string()).collect()
+}
+
+pub fn get_fedora_logo_lines() -> Vec<String> {
+    let art = AsciiArt::new(ASCII_ART_FEDORA, get_colors(), true);
+    art.map(|line| line.to_string()).collect()
+}
+
+pub fn get_ubuntu_logo_lines() -> Vec<String> {
+    let art = AsciiArt::new(ASCII_ART_UBUNTU, get_colors(), true);
+    art.map(|line| line.to_string()).collect()
+}
+
+pub fn get_nix_logo_lines() -> Vec<String> {
+    let art = AsciiArt::new(ASCII_ART_NIX, get_colors(), true);
+    art.map(|line| line.to_string()).collect()
+}
+ */

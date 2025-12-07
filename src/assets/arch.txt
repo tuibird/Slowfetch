@@ -1,0 +1,19 @@
+{5}                  -`
+{5}                 .o+`
+{5}                `ooo/
+{5}               `+oooo:
+{5}              `+oooooo:
+{5}              -+oooooo+:
+{5}            `/:-:++oooo+:
+{5}           `/++++/+++++++:
+{5}          `/++++++++++++++:
+{5}         `/+++o$2oooooooo$1oooo/`
+{5}        ./$2ooosssso++osssssso$1+`
+{5}      .oossssso-````/ossssss+`
+{5}      -osssssso.      :ssssssso.
+{5}     :osssssss/        osssso+++.
+{5}    /ossssssss/        +ssssooo/-
+{5}  `/ossssso+/:-        -:/+osssso+-
+{5} `+sso+:-`                 `.-/+oso:
+{5}`++:.                           `-/+/
+{5}.`                                 `/
