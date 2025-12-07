@@ -10,12 +10,13 @@ os_art = false
 [colors]
 # Theme colors - use web hex format
 # border = "#FF79C6"  # Box borders (default: magenta/pink)
-# title = "#F16C75"   # Section titles (default: coral)
+# title = "#FF79C6"   # Section titles (default: magenta/pink)
 # key = "#BD93F9"     # Info keys (default: purple)
 # value = "#8BE9FD"   # Info values (default: cyan)
 
 # ASCII art colors - maps to {1} through {9} in art files
-# Default: rainbow spectrum (red -> orange -> yellow -> green -> cyan -> blue -> violet -> magenta)
+# Default: rainbow spectrum
+
 # art_1 = "#FF0000"   # {1} - Red
 # art_2 = "#FF8000"   # {2} - Orange
 # art_3 = "#FFFF00"   # {3} - Yellow

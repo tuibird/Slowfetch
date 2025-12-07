@@ -37,7 +37,7 @@ impl Default for ColorConfig {
         Self {
             // Default theme colors (Dracula-inspired)
             border: (0xFF, 0x79, 0xC6), // #FF79C6 - magenta/pink
-            title: (0xF1, 0x6C, 0x75),  // #F16C75 - coral
+            title: (0xFF, 0x79, 0xC6),  // #FF79C6 - magenta/pink
             key: (0xBD, 0x93, 0xF9),    // #BD93F9 - purple
             value: (0x8B, 0xE9, 0xFD),  // #8BE9FD - cyan
             // Default art colors (rainbow spectrum)

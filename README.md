@@ -1,12 +1,12 @@
 ![Slowfetch Logo](https://raw.githubusercontent.com/tuibird/Slowfetch/refs/heads/master/slowfetch.png)
 
-Made this fetch program for myself and my girlfriend. I'm mainly doing this for the sake of learning and honestly making a fetch program with "pretty" out of the box defaults while I'm at it.
+A fetch program project for myself and my girlfriend, but also you I guess! I'm mainly doing this for the sake of learning and honestly making a fetch program with "pretty" defaults sounds good to me.
 
 Currently it displays a short list of system information and the slowfetch logo art. It will adjust its layout (to an extent, wide/narrow) depending on the size of your terminal on execution. I don't actually know if its slow, I mean it feels kinda fast? But I think the name is funny so I'm sticking with it.
 
 As far as the hardware it supports, I run CashyOS which is Arch based. So its primarily designed around my setup. I've tested it on a good few terminals and ive tried to include compatibility for some common package managers like dpkg and rpm, but I never actually got around to testing them so there is a non-zero chance it panics or something stupid.
 
-I will add features slowly as I feel like it.
+I will be adding feature when i have the time to, no schedule sorry.
 
 ## Documentation
 
@@ -14,7 +14,7 @@ The only arugment Slowfetch accepts currently is '--os' to display the OS art in
 
 The amount of supported of support OSs is currently small as I haven't settled on an art style yet.
 
-Currently there is no configuration of any sort, this is on the list of things to re-implement.
+Since V0.2.3 there is now a config file! Should be placed at `~/.config/slowfetch/config.toml`. Currently you can change the launch options for which art to display (sorry no custom art yet!). You can also change the colors used for the interface and modify the ascii art palette. The default config can be found in `src/config.toml`.
 
 ## Contributing
 
