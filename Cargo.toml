@@ -1,6 +1,6 @@
 [package]
 name = "slowfetch"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 
 [profile.release]
@@ -11,5 +11,6 @@ codegen-units = 1  # Reduce the number of codegen units for more optimization
 panic = "abort"
 
 [dependencies]
+clap = { version = "4.5.53", features = ["derive"] }
 inkline = "1.0"
 tintify = "1.0"

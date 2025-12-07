@@ -1,0 +1,16 @@
+error:
+       … while evaluating a branch condition
+         at /nix/store/420694206942069-source/lib/lists.nix:420:69:
+          141|       len = length list;
+          142|       fold' = n: if n == len then nul else op (elemAt list n) (fold' (n + 1));
+             |                  ^
+       error:
+       Failed assertions:
+       - Conflicting managed target files: .zshrc
+
+       This may happen, for example, if you have a configuration similar to
+
+           home.file = {
+             conflict1 = { source = ./foo.nix; target = "git"; };
+             conflict2 = { source = ./bar.nix; target = "gud"; };
+           }

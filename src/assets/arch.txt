@@ -1,19 +1,16 @@
-{5}                  -`
-{5}                 .o+`
-{5}                `ooo/
-{5}               `+oooo:
-{5}              `+oooooo:
-{5}              -+oooooo+:
-{5}            `/:-:++oooo+:
-{5}           `/++++/+++++++:
-{5}          `/++++++++++++++:
-{5}         `/+++o$2oooooooo$1oooo/`
-{5}        ./$2ooosssso++osssssso$1+`
-{5}      .oossssso-````/ossssss+`
-{5}      -osssssso.      :ssssssso.
-{5}     :osssssss/        osssso+++.
-{5}    /ossssssss/        +ssssooo/-
-{5}  `/ossssso+/:-        -:/+osssso+-
-{5} `+sso+:-`                 `.-/+oso:
-{5}`++:.                           `-/+/
-{5}.`                                 `/
+{5}                /\ 
+{5}               /uh\
+{5}              /arch\
+{5}             /btwbtw\
+{5}            /btwbtwbt\
+{5}           /btwbtwbtwb\
+{5}          /btwbtwbtwbtw\
+{5}         /btwbtwbtwbtwbt\
+{5}        /btwbtwbtwbtwbtwb\
+{5}       /btwbtwbtwbtwbtwbtw\
+{5}      /btwbtwbt/\_/\btwbtwb\
+{5}     /btwbtwbt      btwbtwbt\
+{5}    /btwbtwbt|       |btwbtwb\
+{5}   /btwbtwbtwb-     -btwbtwbtw\
+{5}  /btwbtw-`            `-btwbtw\
+{5} /btwbt`                  `btwbt\

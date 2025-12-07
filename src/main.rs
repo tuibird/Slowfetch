@@ -8,10 +8,21 @@ mod renderer;
 mod terminalsize;
 mod userspacemodules;
 
+use clap::Parser;
 use renderer::Section;
 use std::thread;
 
+// cmd line args, *claps*
+#[derive(Parser)]
+#[command(name = "slowfetch", about = "A slow system info fetcher")]
+struct Args {
+    // Display OS-specific art. Optionally specify OS name (example: --os arch)
+    #[arg(long = "os", num_args = 0..=1, default_missing_value = "")]
+    os_art: Option<String>,
+}
+
 fn main() {
+    let args = Args::parse();
     // Spawn a thread for each individual info function for maximum parallelism
     // Core modules
     let os_handler = thread::spawn(coremodules::os);
@@ -73,8 +84,25 @@ fn main() {
 
     let (wide_logo, medium_logo, narrow_logo) = ascii_handler.join().expect("ASCII thread panicked");
 
+    // If --os flag is set, try to use OS-specific art
+    let (wide, medium, narrow) = if let Some(ref os_override) = args.os_art {
+        // Use override if provided, otherwise detect from OS
+        let os_name = if os_override.is_empty() {
+            core.lines.iter().find(|(k, _)| k == "OS").map(|(_, v)| v.as_str()).unwrap_or("")
+        } else {
+            os_override.as_str()
+        };
+        if let Some(os_logo) = asciimodule::get_os_logo_lines(os_name) {
+            (os_logo.clone(), os_logo.clone(), os_logo)
+        } else {
+            (wide_logo, medium_logo, narrow_logo)
+        }
+    } else {
+        (wide_logo, medium_logo, narrow_logo)
+    };
+
     print!(
         "{}",
-        renderer::draw_layout(&wide_logo, &medium_logo, &narrow_logo, &[core, hardware, userspace])
+        renderer::draw_layout(&wide, &medium, &narrow, &[core, hardware, userspace])
     );
 }

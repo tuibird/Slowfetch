@@ -97,6 +97,23 @@ pub fn packages() -> String {
         }
     }
 
+    // Nix - count packages in user profile
+    if let Some(home) = env::var("HOME").ok() {
+        let nix_profile = format!("{}/.nix-profile/manifest.nix", home);
+        if Path::new(&nix_profile).exists() {
+            // Count packages via nix-env -q
+            if let Ok(output) = Command::new("nix-env").arg("-q").output() {
+                let count = String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .filter(|l| !l.is_empty()) //hopefully counting non empty lines
+                    .count();
+                if count > 0 {
+                    counts.push(format!("{} (nix)", count));
+                }
+            }
+        }
+    }
+
     if counts.is_empty() {
         "unknown".to_string()
     } else {

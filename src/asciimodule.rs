@@ -13,6 +13,13 @@ const ASCII_ART_MEDIUM: &str = include_str!("assets/default/medium.txt");
 // The ASCII art for the Slowfetch logo narrow version.
 const ASCII_ART_NARROW: &str = include_str!("assets/default/narrow.txt");
 
+// OS-specific ASCII art
+const ASCII_ART_ARCH: &str = include_str!("assets/arch.txt");
+const ASCII_ART_CACHYOS: &str = include_str!("assets/cachy.txt");
+const ASCII_ART_FEDORA: &str = include_str!("assets/fedora.txt");
+const ASCII_ART_UBUNTU: &str = include_str!("assets/ubuntu.txt");
+const ASCII_ART_NIX: &str = include_str!("assets/nix.txt");
+
 // color setup, yep.
 fn get_colors() -> &'static [DynColors] {
     &[
@@ -44,30 +51,26 @@ pub fn get_narrow_logo_lines() -> Vec<String> {
     let art = AsciiArt::new(ASCII_ART_NARROW, get_colors(), true);
     art.map(|line| line.to_string()).collect()
 }
-// coming soon
 
-/* pub fn get_arch_logo_lines() -> Vec<String> {
-    let art = AsciiArt::new(ASCII_ART_ARCH, get_colors(), true);
-    art.map(|line| line.to_string()).collect()
-}
+// Get OS-specific art if available, returns None if no match
+pub fn get_os_logo_lines(os_name: &str) -> Option<Vec<String>> {
+    let os_lower = os_name.to_lowercase();
+    let art_str = if os_lower.contains("arch") {
+        Some(ASCII_ART_ARCH)
+    } else if os_lower.contains("cachyos") || os_lower.contains("cachy") {
+        Some(ASCII_ART_CACHYOS)
+    } else if os_lower.contains("fedora") {
+        Some(ASCII_ART_FEDORA)
+    } else if os_lower.contains("ubuntu") {
+        Some(ASCII_ART_UBUNTU)
+    } else if os_lower.contains("nixos") || os_lower.contains("nix") {
+        Some(ASCII_ART_NIX)
+    } else {
+        None
+    };
 
-pub fn get_cachy_logo_lines() -> Vec<String> {
-    let art = AsciiArt::new(ASCII_ART_CACHY, get_colors(), true);
-    art.map(|line| line.to_string()).collect()
+    art_str.map(|s| {
+        let art = AsciiArt::new(s, get_colors(), true);
+        art.map(|line| line.to_string()).collect()
+    })
 }
-
-pub fn get_fedora_logo_lines() -> Vec<String> {
-    let art = AsciiArt::new(ASCII_ART_FEDORA, get_colors(), true);
-    art.map(|line| line.to_string()).collect()
-}
-
-pub fn get_ubuntu_logo_lines() -> Vec<String> {
-    let art = AsciiArt::new(ASCII_ART_UBUNTU, get_colors(), true);
-    art.map(|line| line.to_string()).collect()
-}
-
-pub fn get_nix_logo_lines() -> Vec<String> {
-    let art = AsciiArt::new(ASCII_ART_NIX, get_colors(), true);
-    art.map(|line| line.to_string()).collect()
-}
- */

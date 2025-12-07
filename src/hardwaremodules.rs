@@ -69,7 +69,7 @@ pub fn memory() -> String {
         let used_gib = used as f64 / (1024.0 * 1024.0);
         let total_gib = total as f64 / (1024.0 * 1024.0);
 
-        return format!(" {} {:.0}GB󰿟{:.0}GB", bar, used_gib, total_gib);
+        return format!(" {} {:.0}GB/{:.0}GB", bar, used_gib, total_gib);
     }
     "unknown".to_string()
 }
@@ -253,7 +253,7 @@ pub fn storage() -> String {
             let used_gb = used_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
             let total_gb = total_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
 
-            return format!("{} {:.0}GB󰿟{:.0}GB", bar, used_gb, total_gb);
+            return format!("{} {:.0}GB/{:.0}GB", bar, used_gb, total_gb);
         }
     }
     "unknown".to_string()
