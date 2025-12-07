@@ -2,7 +2,26 @@
 
 [display]
 # Show OS-specific art instead of default Slowfetch logo
-# Set to true to auto-detect OS, or specify OS name (e.g. "arch", "fedora")
+# Set to true to auto-detect OS, or specify OS name to force that logo
 # os_art = true
 # os_art = "arch"
 os_art = false
+
+[colors]
+# Theme colors - use web hex format
+# border = "#FF79C6"  # Box borders (default: magenta/pink)
+# title = "#F16C75"   # Section titles (default: coral)
+# key = "#BD93F9"     # Info keys (default: purple)
+# value = "#8BE9FD"   # Info values (default: cyan)
+
+# ASCII art colors - maps to {1} through {9} in art files
+# Default: rainbow spectrum (red -> orange -> yellow -> green -> cyan -> blue -> violet -> magenta)
+# art_1 = "#FF0000"   # {1} - Red
+# art_2 = "#FF8000"   # {2} - Orange
+# art_3 = "#FFFF00"   # {3} - Yellow
+# art_4 = "#00FF00"   # {4} - Green
+# art_5 = "#00FFFF"   # {5} - Cyan
+# art_6 = "#00BFFF"   # {6} - Light Blue
+# art_7 = "#5555FF"   # {7} - Blue
+# art_8 = "#AA55FF"   # {8} - Violet
+# art_9 = "#FF55FF"   # {9} - Magenta

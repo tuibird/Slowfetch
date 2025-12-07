@@ -4,7 +4,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-/// OS art setting - can be disabled, auto-detect, or specific OS
+// OS art setting - can be disabled, auto-detect, or specific OS
 #[derive(Debug, Clone)]
 pub enum OsArtSetting {
     Disabled,
@@ -12,20 +12,80 @@ pub enum OsArtSetting {
     Specific(String),
 }
 
+// Color configuration - all colors stored as RGB tuples
+#[derive(Debug, Clone)]
+pub struct ColorConfig {
+    // Theme colors
+    pub border: (u8, u8, u8),
+    pub title: (u8, u8, u8),
+    pub key: (u8, u8, u8),
+    pub value: (u8, u8, u8),
+    // ASCII art colors (1-9)
+    pub art_1: (u8, u8, u8),
+    pub art_2: (u8, u8, u8),
+    pub art_3: (u8, u8, u8),
+    pub art_4: (u8, u8, u8),
+    pub art_5: (u8, u8, u8),
+    pub art_6: (u8, u8, u8),
+    pub art_7: (u8, u8, u8),
+    pub art_8: (u8, u8, u8),
+    pub art_9: (u8, u8, u8),
+}
+
+impl Default for ColorConfig {
+    fn default() -> Self {
+        Self {
+            // Default theme colors (Dracula-inspired)
+            border: (0xFF, 0x79, 0xC6), // #FF79C6 - magenta/pink
+            title: (0xF1, 0x6C, 0x75),  // #F16C75 - coral
+            key: (0xBD, 0x93, 0xF9),    // #BD93F9 - purple
+            value: (0x8B, 0xE9, 0xFD),  // #8BE9FD - cyan
+            // Default art colors (rainbow spectrum)
+            art_1: (0xFF, 0x00, 0x00), // #FF0000 - Red
+            art_2: (0xFF, 0x80, 0x00), // #FF8000 - Orange
+            art_3: (0xFF, 0xFF, 0x00), // #FFFF00 - Yellow
+            art_4: (0x00, 0xFF, 0x00), // #00FF00 - Green
+            art_5: (0x00, 0xFF, 0xFF), // #00FFFF - Cyan
+            art_6: (0x00, 0xBF, 0xFF), // #00BFFF - Light Blue
+            art_7: (0x55, 0x55, 0xFF), // #5555FF - Blue
+            art_8: (0xAA, 0x55, 0xFF), // #AA55FF - Violet
+            art_9: (0xFF, 0x55, 0xFF), // #FF55FF - Magenta
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Config {
     pub os_art: OsArtSetting,
+    pub colors: ColorConfig,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             os_art: OsArtSetting::Disabled,
+            colors: ColorConfig::default(),
         }
     }
 }
 
-/// Get the config file path, checking common locations
+// Parse a hex color string like "#FF79C6" or "FF79C6" into RGB tuple
+fn parse_hex_color(hex: &str) -> Option<(u8, u8, u8)> {
+    let hex = hex.trim().trim_matches('"');
+    let hex = hex.strip_prefix('#').unwrap_or(hex);
+
+    if hex.len() != 6 {
+        return None;
+    }
+
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+
+    Some((r, g, b))
+}
+
+// Get the config file path, checking common locations
 fn get_config_path() -> Option<PathBuf> {
     // Check XDG_CONFIG_HOME/slowfetch/config.toml first
     if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
@@ -52,7 +112,7 @@ fn get_config_path() -> Option<PathBuf> {
     None
 }
 
-/// Load configuration from file
+// Load configuration from file
 pub fn load_config() -> Config {
     let path = match get_config_path() {
         Some(p) => p,
@@ -67,15 +127,48 @@ pub fn load_config() -> Config {
     parse_config(&content)
 }
 
-/// Parse the TOML config content
+// Parse the TOML config content
 fn parse_config(content: &str) -> Config {
     let mut config = Config::default();
+    let mut in_colors_section = false;
 
     for line in content.lines() {
         let line = line.trim();
 
         // Skip comments and empty lines
         if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        // Track which section we're in
+        if line.starts_with('[') {
+            in_colors_section = line == "[colors]";
+            continue;
+        }
+
+        // Parse color settings
+        if in_colors_section {
+            if let Some((key, value)) = line.split_once('=') {
+                let key = key.trim();
+                if let Some(color) = parse_hex_color(value) {
+                    match key {
+                        "border" => config.colors.border = color,
+                        "title" => config.colors.title = color,
+                        "key" => config.colors.key = color,
+                        "value" => config.colors.value = color,
+                        "art_1" => config.colors.art_1 = color,
+                        "art_2" => config.colors.art_2 = color,
+                        "art_3" => config.colors.art_3 = color,
+                        "art_4" => config.colors.art_4 = color,
+                        "art_5" => config.colors.art_5 = color,
+                        "art_6" => config.colors.art_6 = color,
+                        "art_7" => config.colors.art_7 = color,
+                        "art_8" => config.colors.art_8 = color,
+                        "art_9" => config.colors.art_9 = color,
+                        _ => {}
+                    }
+                }
+            }
             continue;
         }
 

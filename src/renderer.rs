@@ -1,8 +1,8 @@
 // slowfetch rendering system
 // prioritises speed and readability, expect to break things.
 
+use crate::colorcontrol::{color_border, color_key, color_title, color_value};
 use crate::terminalsize::get_terminal_size;
-use tintify::TintColorize;
 
 // Box drawing characters
 const BOX_TOP_LEFT: char = '╭';
@@ -90,45 +90,30 @@ fn build_box(
 
     // Top Border - Let's make it fancy!
     let mut top = String::with_capacity(max_width + 32); // Extra space for ANSI codes
-    top.push_str(&BOX_TOP_LEFT.to_string().bright_magenta().to_string());
+    top.push_str(&color_border(&BOX_TOP_LEFT.to_string()));
     if let Some(title_text) = title {
         // Center the title by calculating how many dashes go on each side
         let total_dashes = max_width.saturating_sub(title_len);
         let left = total_dashes / 2; // Left side gets half
         let right = total_dashes - left; // Right side gets the rest (handles odd numbers)
 
-        top.push_str(
-            &repeat_char(BOX_HORIZONTAL, left)
-                .bright_magenta()
-                .to_string(),
-        );
+        top.push_str(&color_border(&repeat_char(BOX_HORIZONTAL, left)));
 
         top.push(' ');
-        //
-        // Section title colorising done here idiot
-        //
-        top.push_str(&title_text.bright_cyan().to_string());
+        top.push_str(&color_title(title_text));
         top.push(' ');
 
-        top.push_str(
-            &repeat_char(BOX_HORIZONTAL, right)
-                .bright_magenta()
-                .to_string(),
-        );
+        top.push_str(&color_border(&repeat_char(BOX_HORIZONTAL, right)));
     } else {
-        top.push_str(
-            &repeat_char(BOX_HORIZONTAL, max_width + 2)
-                .bright_magenta()
-                .to_string(),
-        );
+        top.push_str(&color_border(&repeat_char(BOX_HORIZONTAL, max_width + 2)));
     }
-    top.push_str(&BOX_TOP_RIGHT.to_string().bright_magenta().to_string());
+    top.push_str(&color_border(&BOX_TOP_RIGHT.to_string()));
     result.push(top);
 
     // Vertical Padding top
     if top_v_padding > 0 {
-        let border = BOX_VERTICAL.to_string().bright_magenta().to_string();
-        let empty_row = format!("{}{}{}", border, repeat_char(' ', max_width + 2), border);
+        let border_char = color_border(&BOX_VERTICAL.to_string());
+        let empty_row = format!("{}{}{}", border_char, repeat_char(' ', max_width + 2), border_char);
         for _ in 0..top_v_padding {
             result.push(empty_row.clone());
         }
@@ -148,7 +133,7 @@ fn build_box(
         };
 
         let mut row = String::with_capacity(max_width + 32);
-        row.push_str(&BOX_VERTICAL.to_string().bright_magenta().to_string());
+        row.push_str(&color_border(&BOX_VERTICAL.to_string()));
 
         row.push(' '); // Left margin
         row.push_str(&repeat_char(' ', left_pad));
@@ -156,14 +141,14 @@ fn build_box(
         row.push_str(&repeat_char(' ', right_pad));
         row.push(' '); // Right margin
 
-        row.push_str(&BOX_VERTICAL.to_string().bright_magenta().to_string());
+        row.push_str(&color_border(&BOX_VERTICAL.to_string()));
         result.push(row);
     }
 
     // Vertical Padding bottom
     if bottom_v_padding > 0 {
-        let border = BOX_VERTICAL.to_string().bright_magenta().to_string();
-        let empty_row = format!("{}{}{}", border, repeat_char(' ', max_width + 2), border);
+        let border_char = color_border(&BOX_VERTICAL.to_string());
+        let empty_row = format!("{}{}{}", border_char, repeat_char(' ', max_width + 2), border_char);
         for _ in 0..bottom_v_padding {
             result.push(empty_row.clone());
         }
@@ -171,13 +156,9 @@ fn build_box(
 
     // Bottom Border
     let mut bottom = String::with_capacity(max_width + 32);
-    bottom.push_str(&BOX_BOTTOM_LEFT.to_string().bright_magenta().to_string());
-    bottom.push_str(
-        &repeat_char(BOX_HORIZONTAL, max_width + 2)
-            .bright_magenta()
-            .to_string(),
-    );
-    bottom.push_str(&BOX_BOTTOM_RIGHT.to_string().bright_magenta().to_string());
+    bottom.push_str(&color_border(&BOX_BOTTOM_LEFT.to_string()));
+    bottom.push_str(&color_border(&repeat_char(BOX_HORIZONTAL, max_width + 2)));
+    bottom.push_str(&color_border(&BOX_BOTTOM_RIGHT.to_string()));
     result.push(bottom);
 
     result
@@ -192,7 +173,7 @@ fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -> Ve
             section
                 .lines
                 .iter()
-                .map(|(key, value)| format!("{}: {}", key.bright_cyan(), value.bright_white()))
+                .map(|(k, v)| format!("{}: {}", color_key(k), color_value(v)))
                 .collect()
         })
         .collect();

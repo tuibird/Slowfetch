@@ -1,8 +1,8 @@
 // ASCII art module for Slowfetch
 // Uses inkline to render colorized ASCII art
 
+use crate::colorcontrol::get_art_colors;
 use inkline::AsciiArt;
-use tintify::{AnsiColors, DynColors};
 
 // The ASCII art for the Slowfetch logo Wide version.
 const ASCII_ART_WIDE: &str = include_str!("assets/default/wide.txt");
@@ -27,35 +27,24 @@ const ASCII_ART_FEDORA_SMOL: &str = include_str!("assets/fedorasmol.txt");
 const ASCII_ART_UBUNTU_SMOL: &str = include_str!("assets/ubuntusmol.txt");
 const ASCII_ART_NIX_SMOL: &str = include_str!("assets/nixsmol.txt");
 
-// color setup, yep.
-fn get_colors() -> &'static [DynColors] {
-    &[
-        DynColors::Ansi(AnsiColors::BrightRed),     // {1} - Red
-        DynColors::Ansi(AnsiColors::BrightYellow),  // {2} - Orange
-        DynColors::Ansi(AnsiColors::Yellow),        // {3} - Yellow
-        DynColors::Ansi(AnsiColors::BrightGreen),   // {4} - Green -
-        DynColors::Ansi(AnsiColors::BrightBlue),    // {5} - Blue
-        DynColors::Ansi(AnsiColors::BrightMagenta), // {6} - Violet (pink)
-        DynColors::Ansi(AnsiColors::BrightCyan),    // {7} - Cyan (light blue)
-        DynColors::Ansi(AnsiColors::BrightWhite),   // {8} - White (its white dude lmao)
-    ]
-}
-
 // Render the wide ASCII art logo and return lines as a Vec
 pub fn get_wide_logo_lines() -> Vec<String> {
-    let art = AsciiArt::new(ASCII_ART_WIDE, get_colors(), true);
+    let colors = get_art_colors();
+    let art = AsciiArt::new(ASCII_ART_WIDE, &colors, true);
     art.map(|line| line.to_string()).collect()
 }
 
 // Render the medium ASCII art logo and return lines as a Vec
 pub fn get_medium_logo_lines() -> Vec<String> {
-    let art = AsciiArt::new(ASCII_ART_MEDIUM, get_colors(), true);
+    let colors = get_art_colors();
+    let art = AsciiArt::new(ASCII_ART_MEDIUM, &colors, true);
     art.map(|line| line.to_string()).collect()
 }
 
 // Render the narrow ASCII art logo and return lines as a Vec
 pub fn get_narrow_logo_lines() -> Vec<String> {
-    let art = AsciiArt::new(ASCII_ART_NARROW, get_colors(), true);
+    let colors = get_art_colors();
+    let art = AsciiArt::new(ASCII_ART_NARROW, &colors, true);
     art.map(|line| line.to_string()).collect()
 }
 
@@ -77,7 +66,8 @@ pub fn get_os_logo_lines(os_name: &str) -> Option<Vec<String>> {
     };
 
     art_str.map(|s| {
-        let art = AsciiArt::new(s, get_colors(), true);
+        let colors = get_art_colors();
+        let art = AsciiArt::new(s, &colors, true);
         art.map(|line| line.to_string()).collect()
     })
 }
@@ -100,7 +90,8 @@ pub fn get_os_logo_lines_smol(os_name: &str) -> Option<Vec<String>> {
     };
 
     art_str.map(|s| {
-        let art = AsciiArt::new(s, get_colors(), true);
+        let colors = get_art_colors();
+        let art = AsciiArt::new(s, &colors, true);
         art.map(|line| line.to_string()).collect()
     })
 }

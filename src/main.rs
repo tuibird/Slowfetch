@@ -1,6 +1,7 @@
 //Slowfetch by Tūī
 
 mod asciimodule;
+mod colorcontrol;
 mod configloader;
 mod coremodules;
 mod hardwaremodules;
@@ -26,10 +27,11 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    // Spawn a thread for each individual info function for maximum parallelism
-    // Config loader
-    let config_handler = thread::spawn(configloader::load_config);
+    // Load config first and initialize colors before spawning threads
+    let config = configloader::load_config();
+    colorcontrol::init_colors(config.colors.clone());
 
+    // Spawn a thread for each individual info function for maximum parallelism
     // Core modules
     let os_handler = thread::spawn(coremodules::os);
     let kernel_handler = thread::spawn(coremodules::kernel);
@@ -48,7 +50,7 @@ fn main() {
     let wm_handler = thread::spawn(userspacemodules::wm);
     let ui_handler = thread::spawn(userspacemodules::ui);
 
-    // ASCII art
+    // ASCII art (spawned after colors are initialized)
     let ascii_handler = thread::spawn(|| {
         (
             asciimodule::get_wide_logo_lines(),
@@ -61,35 +63,71 @@ fn main() {
     let core = Section::new(
         "Core",
         vec![
-            ("OS".to_string(), os_handler.join().unwrap_or_else(|_| "error".into())),
-            ("Kernel".to_string(), kernel_handler.join().unwrap_or_else(|_| "error".into())),
-            ("Uptime".to_string(), uptime_handler.join().unwrap_or_else(|_| "error".into())),
+            (
+                "OS".to_string(),
+                os_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "Kernel".to_string(),
+                kernel_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "Uptime".to_string(),
+                uptime_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
         ],
     );
 
     let hardware = Section::new(
         "Hardware",
         vec![
-            ("CPU".to_string(), cpu_handler.join().unwrap_or_else(|_| "error".into())),
-            ("GPU".to_string(), gpu_handler.join().unwrap_or_else(|_| "error".into())),
-            ("Memory".to_string(), memory_handler.join().unwrap_or_else(|_| "error".into())),
-            ("Storage".to_string(), storage_handler.join().unwrap_or_else(|_| "error".into())),
+            (
+                "CPU".to_string(),
+                cpu_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "GPU".to_string(),
+                gpu_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "Memory".to_string(),
+                memory_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "Storage".to_string(),
+                storage_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
         ],
     );
 
     let userspace = Section::new(
         "Userspace",
         vec![
-            ("Packages".to_string(), packages_handler.join().unwrap_or_else(|_| "error".into())),
-            ("Terminal".to_string(), terminal_handler.join().unwrap_or_else(|_| "error".into())),
-            ("Shell".to_string(), shell_handler.join().unwrap_or_else(|_| "error".into())),
-            ("WM".to_string(), wm_handler.join().unwrap_or_else(|_| "error".into())),
-            ("UI".to_string(), ui_handler.join().unwrap_or_else(|_| "error".into())),
+            (
+                "Packages".to_string(),
+                packages_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "Terminal".to_string(),
+                terminal_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "Shell".to_string(),
+                shell_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "WM".to_string(),
+                wm_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "UI".to_string(),
+                ui_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
         ],
     );
 
-    let (wide_logo, medium_logo, narrow_logo) = ascii_handler.join().expect("ASCII thread panicked");
-    let config = config_handler.join().expect("Config thread panicked");
+    let (wide_logo, medium_logo, narrow_logo) =
+        ascii_handler.join().expect("ASCII thread panicked");
 
     // Determine OS art setting: CLI args override config
     let os_art_setting = if let Some(ref os_override) = args.os_art {
@@ -106,7 +144,12 @@ fn main() {
     let (wide, medium, narrow, smol) = match os_art_setting {
         OsArtSetting::Disabled => (wide_logo, medium_logo, narrow_logo, None),
         OsArtSetting::Auto => {
-            let os_name = core.lines.iter().find(|(k, _)| k == "OS").map(|(_, v)| v.as_str()).unwrap_or("");
+            let os_name = core
+                .lines
+                .iter()
+                .find(|(k, _)| k == "OS")
+                .map(|(_, v)| v.as_str())
+                .unwrap_or("");
             if let Some(os_logo) = asciimodule::get_os_logo_lines(os_name) {
                 let smol_logo = asciimodule::get_os_logo_lines_smol(os_name);
                 (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
@@ -126,6 +169,12 @@ fn main() {
 
     print!(
         "{}",
-        renderer::draw_layout(&wide, &medium, &narrow, &[core, hardware, userspace], smol.as_deref())
+        renderer::draw_layout(
+            &wide,
+            &medium,
+            &narrow,
+            &[core, hardware, userspace],
+            smol.as_deref()
+        )
     );
 }
