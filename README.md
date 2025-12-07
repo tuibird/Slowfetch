@@ -1,3 +1,4 @@
+![Slowfetch Logo](https://raw.githubusercontent.com/tuibird/Slowfetch/refs/heads/master/slowfetch.png)
 # Slowfetch
 
 Made this fetch program for myself and my girlfriend. I'm mainly doing this for the sake of learning and honestly making a fetch program with "pretty" out of the box defaults while I'm at it.
