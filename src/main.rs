@@ -85,7 +85,7 @@ fn main() {
     let (wide_logo, medium_logo, narrow_logo) = ascii_handler.join().expect("ASCII thread panicked");
 
     // If --os flag is set, try to use OS-specific art
-    let (wide, medium, narrow) = if let Some(ref os_override) = args.os_art {
+    let (wide, medium, narrow, smol) = if let Some(ref os_override) = args.os_art {
         // Use override if provided, otherwise detect from OS
         let os_name = if os_override.is_empty() {
             core.lines.iter().find(|(k, _)| k == "OS").map(|(_, v)| v.as_str()).unwrap_or("")
@@ -93,16 +93,17 @@ fn main() {
             os_override.as_str()
         };
         if let Some(os_logo) = asciimodule::get_os_logo_lines(os_name) {
-            (os_logo.clone(), os_logo.clone(), os_logo)
+            let smol_logo = asciimodule::get_os_logo_lines_smol(os_name);
+            (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
         } else {
-            (wide_logo, medium_logo, narrow_logo)
+            (wide_logo, medium_logo, narrow_logo, None)
         }
     } else {
-        (wide_logo, medium_logo, narrow_logo)
+        (wide_logo, medium_logo, narrow_logo, None)
     };
 
     print!(
         "{}",
-        renderer::draw_layout(&wide, &medium, &narrow, &[core, hardware, userspace])
+        renderer::draw_layout(&wide, &medium, &narrow, &[core, hardware, userspace], smol.as_deref())
     );
 }

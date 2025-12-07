@@ -75,7 +75,7 @@ pub fn memory() -> String {
 }
 
 // Get the GPU model.
-// Tries vulkaninfo first for speed, then glxinfo for slightly less speed, then sysfs + pci.ids as a fallback
+// Tries vulkaninfo first for speed, then glxinfo for slightly less speed, then sysfs + pci.ids, then lspci as final fallback
 pub fn gpu() -> String {
     // Try vulkaninfo first - fastest option (~19ms)
     if let Some(name) = gpu_from_vulkaninfo() {
@@ -88,7 +88,12 @@ pub fn gpu() -> String {
     }
 
     // Fallback to sysfs + pci.ids lookup (~1ms but less accurate names)
-    gpu_from_sysfs().unwrap_or_else(|| "unknown".to_string())
+    if let Some(name) = gpu_from_sysfs() {
+        return name;
+    }
+
+    // Final fallback: lspci -mm (slow af but should get it done)
+    gpu_from_lspci().unwrap_or_else(|| "unknown".to_string())
 }
 
 // Get GPU name from vulkaninfo
@@ -211,6 +216,48 @@ fn lookup_pci_device(pci_ids: &str, vendor_id: &str, device_id: &str) -> Option<
             let trimmed = line.trim_start_matches('\t');
             if trimmed.starts_with(device_id) && trimmed.chars().nth(4) == Some(' ') {
                 return Some(trimmed[4..].trim().to_string());
+            }
+        }
+    }
+    None
+}
+
+// Get GPU name from lspci -mm (final fallback)
+fn gpu_from_lspci() -> Option<String> {
+    let output = Command::new("lspci").arg("-mm").output().ok()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // lspci -mm format: Slot Class Vendor Device SVendor SDevice PhySlot Rev ProgIf
+    // Fields are quoted, e.g.: 03:00.0 "VGA compatible controller" "AMD" "Navi 48" ...
+    for line in stdout.lines() {
+        // Look for VGA or 3D controller
+        if line.contains("VGA compatible controller") || line.contains("3D controller") {
+            // Parse the quoted fields
+            let fields: Vec<&str> = line
+                .split('"')
+                .enumerate()
+                .filter_map(|(i, s)| if i % 2 == 1 { Some(s) } else { None })
+                .collect();
+
+            // fields[0] = class, fields[1] = vendor, fields[2] = device name
+            if fields.len() >= 3 {
+                let vendor = fields[1];
+                let device = fields[2];
+
+                // Skip integrated/CPU graphics if possible
+                if device.contains("Processor") || device.contains("Integrated") {
+                    continue;
+                }
+
+                // Shorten common vendor names
+                let vendor_short = match vendor {
+                    v if v.contains("Advanced Micro Devices") || v.contains("AMD") => "AMD",
+                    v if v.contains("NVIDIA") => "NVIDIA",
+                    v if v.contains("Intel") => "Intel",
+                    _ => vendor,
+                };
+
+                return Some(format!("{} {}", vendor_short, device));
             }
         }
     }

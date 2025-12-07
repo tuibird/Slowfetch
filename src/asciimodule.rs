@@ -20,6 +20,13 @@ const ASCII_ART_FEDORA: &str = include_str!("assets/fedora.txt");
 const ASCII_ART_UBUNTU: &str = include_str!("assets/ubuntu.txt");
 const ASCII_ART_NIX: &str = include_str!("assets/nix.txt");
 
+// Smol versions of OS-specific ASCII art
+const ASCII_ART_ARCH_SMOL: &str = include_str!("assets/archsmol.txt");
+const ASCII_ART_CACHYOS_SMOL: &str = include_str!("assets/cachysmol.txt");
+const ASCII_ART_FEDORA_SMOL: &str = include_str!("assets/fedorasmol.txt");
+const ASCII_ART_UBUNTU_SMOL: &str = include_str!("assets/ubuntusmol.txt");
+const ASCII_ART_NIX_SMOL: &str = include_str!("assets/nixsmol.txt");
+
 // color setup, yep.
 fn get_colors() -> &'static [DynColors] {
     &[
@@ -65,6 +72,29 @@ pub fn get_os_logo_lines(os_name: &str) -> Option<Vec<String>> {
         Some(ASCII_ART_UBUNTU)
     } else if os_lower.contains("nixos") || os_lower.contains("nix") {
         Some(ASCII_ART_NIX)
+    } else {
+        None
+    };
+
+    art_str.map(|s| {
+        let art = AsciiArt::new(s, get_colors(), true);
+        art.map(|line| line.to_string()).collect()
+    })
+}
+
+// Get smol OS-specific art if available, returns None if no match
+pub fn get_os_logo_lines_smol(os_name: &str) -> Option<Vec<String>> {
+    let os_lower = os_name.to_lowercase();
+    let art_str = if os_lower.contains("arch") {
+        Some(ASCII_ART_ARCH_SMOL)
+    } else if os_lower.contains("cachyos") || os_lower.contains("cachy") {
+        Some(ASCII_ART_CACHYOS_SMOL)
+    } else if os_lower.contains("fedora") {
+        Some(ASCII_ART_FEDORA_SMOL)
+    } else if os_lower.contains("ubuntu") {
+        Some(ASCII_ART_UBUNTU_SMOL)
+    } else if os_lower.contains("nixos") || os_lower.contains("nix") {
+        Some(ASCII_ART_NIX_SMOL)
     } else {
         None
     };

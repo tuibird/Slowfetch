@@ -229,11 +229,13 @@ fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -> Ve
 
 // Draw ASCII art and sections with adaptive layout.
 // Wide art side-by-side, medium art side-by-side, narrow art stacked, or no art if too short.
+// If smol_art is provided and wide_art doesn't fit side-by-side, try smol_art before falling back.
 pub fn draw_layout(
     wide_art: &[String],
     medium_art: &[String],
     narrow_art: &[String],
     sections: &[Section],
+    smol_art: Option<&[String]>,
 ) -> String {
     // Calculate widths beforehand (measure twice, cut once!)
     let wide_art_width = wide_art
@@ -267,12 +269,19 @@ pub fn draw_layout(
         .max()
         .unwrap_or(0);
 
+    // Calculate smol art width if provided
+    let smol_art_width = smol_art
+        .map(|art| art.iter().map(|line| visible_len(line)).max().unwrap_or(0))
+        .unwrap_or(0);
+
     // Time for some box math! Each box needs borders (2) and margins (2) = +4
     // Then we need a gap between them (+1)
     let wide_box_width = wide_art_width + 4;
     let medium_box_width = medium_art_width + 4;
+    let smol_box_width = smol_art_width + 4;
     let sections_box_width = sections_width + 4;
     let wide_side_by_side = wide_box_width + 1 + sections_box_width;
+    let smol_side_by_side = smol_box_width + 1 + sections_box_width;
     let medium_side_by_side = medium_box_width + 1 + sections_box_width;
 
     // How big is your terminal, really though i need to know.
@@ -292,7 +301,7 @@ pub fn draw_layout(
     let mut output = String::new();
 
     if term_width >= wide_side_by_side {
-        // We have room! Let's go side-by-side with the WIDE art (fancy mode activated)
+        // We have room! Let's go side-by-side with the WIDE art, fancy (default art)
         let sections_box = build_sections_lines(sections, None);
         let target_height = sections_box.len();
         let wide_art_box = build_box(wide_art, None, None, Some(target_height), true);
@@ -315,8 +324,33 @@ pub fn draw_layout(
 
             output.push('\n');
         }
+    } else if smol_art.is_some() && term_width >= smol_side_by_side {
+        // Wide art doesn't fit, but i have smol art that does
+        let smol = smol_art.unwrap();
+        let sections_box = build_sections_lines(sections, None);
+        let target_height = sections_box.len();
+        let smol_art_box = build_box(smol, None, None, Some(target_height), true);
+
+        let max_lines = smol_art_box.len().max(sections_box.len());
+
+        for index in 0..max_lines {
+            if index < smol_art_box.len() {
+                output.push_str(&smol_art_box[index]);
+            } else {
+                let box_width = visible_len(&smol_art_box[0]);
+                output.push_str(&repeat_char(' ', box_width));
+            }
+
+            output.push(' ');
+
+            if index < sections_box.len() {
+                output.push_str(&sections_box[index]);
+            }
+
+            output.push('\n');
+        }
     } else if term_width >= medium_side_by_side {
-        // Medium art side-by-side (not wide enough for full art, but not narrow either)
+        // Medium art side-by-side (default medium art)
         let sections_box = build_sections_lines(sections, None);
         let target_height = sections_box.len();
         let medium_art_box = build_box(medium_art, None, None, Some(target_height), true);
@@ -339,8 +373,24 @@ pub fn draw_layout(
 
             output.push('\n');
         }
+    } else if smol_art.is_some() && term_height >= sections_height + smol_art.unwrap().len() + 2 {
+        // Stacked layout with smol OS art on top (smol art fits vertically)
+        let smol = smol_art.unwrap();
+        let max_width = smol_art_width.max(sections_width);
+
+        let smol_art_box = build_box(smol, None, Some(max_width), None, true);
+        let sections_box = build_sections_lines(sections, Some(max_width));
+
+        for line in &smol_art_box {
+            output.push_str(line);
+            output.push('\n');
+        }
+        for line in &sections_box {
+            output.push_str(line);
+            output.push('\n');
+        }
     } else if term_height >= sections_height + narrow_art_height {
-        // Stacked layout with narrow art on top
+        // Stacked layout with narrow art on top (default art)
         let max_width = narrow_art_width.max(sections_width);
 
         let narrow_art_box = build_box(narrow_art, None, Some(max_width), None, true);
