@@ -169,6 +169,9 @@ pub fn ui() -> String {
                 if cmdline.contains("gnome-shell") {
                     return "Gnome Shell".to_string();
                 }
+                if cmdline.contains("waybar") {
+                    return "Custom Waybar setup".to_string();
+                }
             }
         }
     }
