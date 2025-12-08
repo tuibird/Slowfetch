@@ -4,6 +4,7 @@ mod asciimodule;
 mod colorcontrol;
 mod configloader;
 mod coremodules;
+mod fontmodule;
 mod hardwaremodules;
 mod helpers;
 mod renderer;
@@ -49,6 +50,7 @@ fn main() {
     let shell_handler = thread::spawn(userspacemodules::shell);
     let wm_handler = thread::spawn(userspacemodules::wm);
     let ui_handler = thread::spawn(userspacemodules::ui);
+    let font_handler = thread::spawn(fontmodule::find_font);
 
     // ASCII art (spawned after colors are initialized)
     let ascii_handler = thread::spawn(|| {
@@ -122,6 +124,10 @@ fn main() {
             (
                 "UI".to_string(),
                 ui_handler.join().unwrap_or_else(|_| "error".into()),
+            ),
+            (
+                "Terminal Font".to_string(),
+                font_handler.join().unwrap_or_else(|_| "error".into()),
             ),
         ],
     );
