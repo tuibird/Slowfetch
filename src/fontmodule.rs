@@ -21,31 +21,7 @@ pub fn find_font() -> String {
         _ => None,
     };
 
-    if let Some(font) = result {
-        return font;
-    }
-
-    // Fallback: try all known terminal configs
-    if let Some(font) = font_from_kitty() {
-        return font;
-    }
-    if let Some(font) = font_from_alacritty() {
-        return font;
-    }
-    if let Some(font) = font_from_foot() {
-        return font;
-    }
-    if let Some(font) = font_from_ghostty() {
-        return font;
-    }
-    if let Some(font) = font_from_konsole() {
-        return font;
-    }
-    if let Some(font) = font_from_gnome_terminal() {
-        return font;
-    }
-
-    "unknown".to_string()
+    result.unwrap_or_else(|| "unknown".to_string())
 }
 
 // Parse Kitty config (~/.config/kitty/kitty.conf)
@@ -67,84 +43,25 @@ fn font_from_kitty() -> Option<String> {
     None
 }
 
-// Parse Alacritty config (~/.config/alacritty/alacritty.toml or .yml)
+// Parse Alacritty config (~/.config/alacritty/alacritty.toml)
 fn font_from_alacritty() -> Option<String> {
     let home = env::var("HOME").ok()?;
-
-    // Try TOML first (newer format)
-    let toml_path = format!("{}/.config/alacritty/alacritty.toml", home);
-    if let Ok(content) = fs::read_to_string(&toml_path) {
-        if let Some(font) = parse_alacritty_toml(&content) {
-            return Some(font);
-        }
-    }
-
-    // Try YAML (older format)
-    let yml_path = format!("{}/.config/alacritty/alacritty.yml", home);
-    if let Ok(content) = fs::read_to_string(&yml_path) {
-        if let Some(font) = parse_alacritty_yaml(&content) {
-            return Some(font);
-        }
-    }
-
-    None
-}
-
-fn parse_alacritty_toml(content: &str) -> Option<String> {
-    // Look for [font.normal] section then family = "..."
-    let mut in_font_section = false;
+    let path = format!("{}/.config/alacritty/alacritty.toml", home);
+    let content = fs::read_to_string(&path).ok()?;
 
     for line in content.lines() {
         let line = line.trim();
-
-        if line == "[font.normal]" || line == "[font]" {
-            in_font_section = true;
+        if line.starts_with('#') || line.starts_with('[') {
             continue;
         }
-
-        if line.starts_with('[') && in_font_section {
-            in_font_section = false;
-        }
-
-        if in_font_section && line.starts_with("family") {
-            // Format: family = "JetBrains Mono"
+        // Match any line ending with family = "..."
+        if line.contains("family") && line.contains('=') {
             if let Some(val) = line.split('=').nth(1) {
                 let font = val.trim().trim_matches('"').trim_matches('\'');
-                return Some(clean_font_name(font));
+                if !font.is_empty() {
+                    return Some(clean_font_name(font));
+                }
             }
-        }
-    }
-    None
-}
-
-fn parse_alacritty_yaml(content: &str) -> Option<String> {
-    // Look for font: normal: family: pattern
-    let mut in_font = false;
-    let mut in_normal = false;
-
-    for line in content.lines() {
-        if line.trim_start().starts_with('#') {
-            continue;
-        }
-
-        if line.starts_with("font:") || line == "font:" {
-            in_font = true;
-            continue;
-        }
-
-        if in_font && !line.starts_with(' ') && !line.is_empty() {
-            in_font = false;
-            in_normal = false;
-        }
-
-        if in_font && line.contains("normal:") {
-            in_normal = true;
-            continue;
-        }
-
-        if in_font && in_normal && line.contains("family:") {
-            let font = line.split(':').nth(1)?.trim().trim_matches('"').trim_matches('\'');
-            return Some(clean_font_name(font));
         }
     }
     None
@@ -214,7 +131,7 @@ fn font_from_konsole() -> Option<String> {
             }
         }
     }
-    None
+    Some("unset".to_string())
 }
 
 // Parse GNOME Terminal via dconf
@@ -268,32 +185,41 @@ pub fn is_nerd_font(font: &str) -> bool {
     font.contains("NF") || font.contains("Nerd Font")
 }
 
-// Clean up font name - remove style suffixes and normalize
+// Clean up font name - remove style suffixes, normalize, and beautify for display
 fn clean_font_name(font: &str) -> String {
     let font = font.trim();
 
     // Resolve generic font aliases like "monospace" using fc-match
     let font = resolve_font_alias(font);
 
-    // Remove common style suffixes if they appear at the end
+    // Remove common style suffixes if they appear at the end (case-insensitive)
     let suffixes = [
-        " Regular",
-        " Medium",
-        " Bold",
-        " Italic",
-        " Light",
-        " Thin",
-        " SemiBold",
-        " ExtraBold",
-        " Black",
+        " regular",
+        " medium",
+        " bold",
+        " italic",
+        " light",
+        " thin",
+        " semibold",
+        " extrabold",
+        " black",
     ];
 
     let mut result = font;
+    let lower = result.to_lowercase();
     for suffix in &suffixes {
-        if result.ends_with(suffix) {
+        if lower.ends_with(suffix) {
             result = result[..result.len() - suffix.len()].to_string();
             break;
         }
+    }
+
+    // Convert "Nerd Font" to "NF"
+    result = result.replace("Nerd Font", "NF");
+
+    // Trim " Mono" from end
+    if result.ends_with(" Mono") {
+        result = result[..result.len() - 5].to_string();
     }
 
     result
