@@ -114,6 +114,19 @@ pub fn packages() -> String {
         }
     }
 
+    // XBPS (Void Linux) - count directories in /var/db/xbps/
+    if Path::new("/var/db/xbps").exists() {
+        if let Ok(entries) = fs::read_dir("/var/db/xbps") {
+            let count = entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_dir())
+                .count();
+            if count > 0 {
+                counts.push(format!("{}  ", count));
+            }
+        }
+    }
+
     if counts.is_empty() {
         "unknown".to_string()
     } else {
@@ -158,7 +171,7 @@ pub fn terminal() -> String {
     capitalize(name)
 }
 
-// Get the active UI/Shell, i dont know what to call this shit because i already shell for the terminal shell
+// Get the active UI/Shell, i dont know what to call this shit because i already used shell for the terminal shell
 pub fn ui() -> String {
     // Read /proc directly instead of spawning ps, saves like 3-4ms
     let proc_path = Path::new("/proc");
