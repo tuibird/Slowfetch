@@ -54,7 +54,6 @@ pub fn shell() -> String {
 
 // Get the total number of installed packages.
 // Supports pacman aka Arch, hopefully supports debian and fedora but idk, im not setting up a vm to test sorry
-// oh yeah and maybe flatpaks, same deal though untested.
 pub fn packages() -> String {
     let mut counts: Vec<String> = Vec::new();
 

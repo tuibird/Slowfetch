@@ -1,6 +1,7 @@
 // Helper functions
 
 use std::fs;
+use crate::fontmodule::{find_font, is_nerd_font};
 
 // Helper to read the first line of a file, yeah ik this dumb dont @ me
 pub fn read_first_line(path: &str) -> Option<String> {
@@ -19,8 +20,8 @@ pub fn capitalize(s: &str) -> String {
     }
 }
 
-// Draw the damn bar
-pub fn create_bar(usage_percent: f64) -> String {
+// Draw the bar with nerd font icons
+pub fn create_bar_pretty(usage_percent: f64) -> String {
     // Calculate filled blocks, 10 blocks = 100%
     let filled_blocks = ((usage_percent / 10.0).round() as usize).min(10);
 
@@ -36,6 +37,25 @@ pub fn create_bar(usage_percent: f64) -> String {
             "".repeat(filled_middle),
             "".repeat(empty_middle)
         )
+    }
+}
+
+// Draw the bar with regular characters
+pub fn create_bar_ascii(usage_percent: f64) -> String {
+    // Calculate filled blocks, 10 blocks = 100%
+    let filled_blocks = ((usage_percent / 10.0).round() as usize).min(10);
+    let empty_blocks = 10 - filled_blocks;
+
+    format!("[{}{}]", "=".repeat(filled_blocks), " ".repeat(empty_blocks))
+}
+
+// Draw the bar, auto-selecting style based on font
+pub fn create_bar(usage_percent: f64) -> String {
+    let font = find_font();
+    if is_nerd_font(&font) {
+        create_bar_pretty(usage_percent)
+    } else {
+        create_bar_ascii(usage_percent)
     }
 }
 
