@@ -136,14 +136,68 @@ pub fn packages() -> String {
 
 // Get the Window Manager
 pub fn wm() -> String {
-    let wm_name = if let Ok(wm) = env::var("XDG_CURRENT_DESKTOP") {
-        wm
-    } else if let Ok(wm) = env::var("DESKTOP_SESSION") {
-        wm
-    } else {
-        "unknown".to_string()
-    };
-    capitalize(&wm_name)
+    // Known WMs to search for (search term -> display name)
+    let wm_list = [
+        ("mutter", "Mutter"),
+        ("kwin", "KWin"),
+        ("sway", "Sway"),
+        ("hyprland", "Hyprland"),
+        ("Hyprland", "Hyprland"),
+        ("river", "River"),
+        ("wayfire", "Wayfire"),
+        ("labwc", "LabWC"),
+        ("dwl", "dwl"),
+        ("niri", "Niri"),
+        ("openbox", "Openbox"),
+        ("i3", "i3"),
+        ("bspwm", "bspwm"),
+        ("dwm", "dwm"),
+        ("awesome", "Awesome"),
+        ("xfwm4", "Xfwm4"),
+        ("marco", "Marco"),
+        ("metacity", "Metacity"),
+        ("compiz", "Compiz"),
+        ("enlightenment", "Enlightenment"),
+        ("fluxbox", "Fluxbox"),
+        ("icewm", "IceWM"),
+        ("xmonad", "XMonad"),
+        ("qtile", "Qtile"),
+        ("herbstluftwm", "herbstluftwm"),
+        ("weston", "Weston"),
+        ("cage", "Cage"),
+        ("gamescope", "Gamescope"),
+    ];
+
+    // Build grep pattern from WM list
+    let pattern = wm_list
+        .iter()
+        .map(|(name, _)| *name)
+        .collect::<Vec<_>>()
+        .join("|");
+
+    // Use ps -ef | grep to find running WM
+    if let Ok(output) = Command::new("sh")
+        .arg("-c")
+        .arg(format!("ps -ef | grep -E '{}' | grep -v grep", pattern))
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for (wm_search, wm_display) in &wm_list {
+            if stdout.contains(wm_search) {
+                return wm_display.to_string();
+            }
+        }
+    }
+
+    // Fallback to environment variables
+    if let Ok(wm) = env::var("XDG_CURRENT_DESKTOP") {
+        return capitalize(&wm);
+    }
+    if let Ok(wm) = env::var("DESKTOP_SESSION") {
+        return capitalize(&wm);
+    }
+
+    "unknown".to_string()
 }
 
 // Get the active terminal
@@ -188,7 +242,7 @@ pub fn ui() -> String {
                 if cmdline.contains("noctalia-shell") {
                     let mut name = "Noctalia Shell".to_string();
                     if let Some(scheme) = get_noctalia_scheme() {
-                        name = format!("{} ({})", name, capitalize(&scheme));
+                        name = format!("{} |  {}", name, capitalize(&scheme));
                     }
                     return name;
                 }

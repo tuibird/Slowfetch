@@ -52,6 +52,10 @@ pub fn get_noctalia_scheme() -> Option<String> {
                     let value = parts[1].trim();
                     // Remove bullshit
                     let clean_value = value.trim_matches(|c| c == '"' || c == ',' || c == ' ');
+                    // Return None for default scheme
+                    if clean_value.to_lowercase().contains("default") {
+                        return None;
+                    }
                     return Some(clean_value.to_string());
                 }
             }
