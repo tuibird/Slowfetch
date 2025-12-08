@@ -62,7 +62,7 @@ pub fn packages() -> String {
     if let Ok(entries) = fs::read_dir("/var/lib/pacman/local") {
         let count = entries.filter(|e| e.is_ok()).count();
         if count > 0 {
-            counts.push(format!("{} (pacman)", count));
+            counts.push(format!("{} 󰮯 ", count));
         }
     }
 
@@ -73,7 +73,7 @@ pub fn packages() -> String {
             .filter(|line| line == &"Status: install ok installed")
             .count();
         if count > 0 {
-            counts.push(format!("{} (dpkg)", count));
+            counts.push(format!("{}  ", count));
         }
     }
 
@@ -84,7 +84,7 @@ pub fn packages() -> String {
         if let Ok(output) = Command::new("rpm").arg("-qa").output() {
             let count = String::from_utf8_lossy(&output.stdout).lines().count();
             if count > 0 {
-                counts.push(format!("{} (rpm)", count));
+                counts.push(format!("{} ", count));
             }
         }
     }
@@ -93,7 +93,7 @@ pub fn packages() -> String {
     if let Ok(entries) = fs::read_dir("/var/lib/flatpak/app") {
         let count = entries.filter(|e| e.is_ok()).count();
         if count > 0 {
-            counts.push(format!("{} (flatpak)", count));
+            counts.push(format!("{}  ", count));
         }
     }
 
@@ -108,7 +108,7 @@ pub fn packages() -> String {
                     .filter(|l| !l.is_empty()) //hopefully counting non empty lines
                     .count();
                 if count > 0 {
-                    counts.push(format!("{} (nix)", count));
+                    counts.push(format!("{}  ", count));
                 }
             }
         }
@@ -117,7 +117,7 @@ pub fn packages() -> String {
     if counts.is_empty() {
         "unknown".to_string()
     } else {
-        counts.join(", ")
+        counts.join("| ")
     }
 }
 
