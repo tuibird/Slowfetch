@@ -6,7 +6,7 @@ use std::process::Command;
 
 use crate::helpers::{create_bar, read_first_line};
 
-/// Get the CPU model name with boost clock.
+// Get the CPU model name with boost clock.
 pub fn cpu() -> String {
     let model = if let Ok(content) = fs::read_to_string("/proc/cpuinfo") {
         content
@@ -14,8 +14,19 @@ pub fn cpu() -> String {
             .find(|line| line.starts_with("model name"))
             .and_then(|line| line.split(':').nth(1))
             .map(|name| {
-                name.split_whitespace()
-                    .filter(|&w| !w.ends_with("-Core") && w != "Processor")
+                let words: Vec<&str> = name.split_whitespace().collect();
+                // Find where GPU info starts (e.g., "with Radeon Graphics", "w/ Intel UHD")
+                let gpu_start = words.iter().position(|&w| {
+                    w.eq_ignore_ascii_case("with") || w.eq_ignore_ascii_case("w/")
+                });
+                let words = match gpu_start {
+                    Some(idx) => &words[..idx],
+                    None => &words[..],
+                };
+                words
+                    .iter()
+                    .filter(|&&w| !w.ends_with("-Core") && w != "Processor")
+                    .copied()
                     .collect::<Vec<_>>()
                     .join(" ")
             })
