@@ -2,10 +2,28 @@
 
 use std::fs;
 
+use crate::cache;
 use crate::helpers::read_first_line;
 
 // Get the OS name from /etc/os-release.
+// Uses persistent cache to avoid repeated file reads.
 pub fn os() -> String {
+    // Check cache first (unless --refresh was passed)
+    if let Some(cached) = cache::get_cached_os() {
+        return cached;
+    }
+
+    // No cache hit, fetch fresh value
+    let result = os_fresh();
+
+    // Cache the result for next time
+    cache::cache_os(&result);
+
+    result
+}
+
+// Fetch OS info fresh (no cache)
+fn os_fresh() -> String {
     if let Ok(content) = fs::read_to_string("/etc/os-release") {
         for line in content.lines() {
             if line.starts_with("PRETTY_NAME=") {
