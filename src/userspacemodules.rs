@@ -133,7 +133,7 @@ pub fn packages() -> String {
     }
 }
 
-// Get the Window Manager
+// Get the Window Manager (using /proc instead of subprocess)
 pub fn wm() -> String {
     // Known WMs to search for (search term -> display name)
     let wm_list = [
@@ -167,23 +167,23 @@ pub fn wm() -> String {
         ("gamescope", "Gamescope"),
     ];
 
-    // Build grep pattern from WM list
-    let pattern = wm_list
-        .iter()
-        .map(|(name, _)| *name)
-        .collect::<Vec<_>>()
-        .join("|");
+    // Read /proc directly instead of spawning ps | grep (saves 3ish ms)
+    let proc_path = Path::new("/proc");
+    if let Ok(entries) = fs::read_dir(proc_path) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            // Only check numeric directories (PIDs)
+            if !name.to_string_lossy().chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                continue;
+            }
 
-    // Use ps -ef | grep to find running WM
-    if let Ok(output) = Command::new("sh")
-        .arg("-c")
-        .arg(format!("ps -ef | grep -E '{}' | grep -v grep", pattern))
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        for (wm_search, wm_display) in &wm_list {
-            if stdout.contains(wm_search) {
-                return wm_display.to_string();
+            let cmdline_path = entry.path().join("cmdline");
+            if let Ok(cmdline) = fs::read_to_string(&cmdline_path) {
+                for (wm_search, wm_display) in &wm_list {
+                    if cmdline.contains(wm_search) {
+                        return wm_display.to_string();
+                    }
+                }
             }
         }
     }

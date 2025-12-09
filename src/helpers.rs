@@ -1,7 +1,71 @@
 // Helper functions
 
+use std::collections::HashMap;
 use std::fs;
+use std::sync::OnceLock;
 use crate::fontmodule::{find_font, is_nerd_font};
+
+// Cache for font detection - only computed once
+static CACHED_FONT: OnceLock<String> = OnceLock::new();
+static CACHED_IS_NERD: OnceLock<bool> = OnceLock::new();
+
+fn get_cached_is_nerd_font() -> bool {
+    *CACHED_IS_NERD.get_or_init(|| {
+        let font = CACHED_FONT.get_or_init(find_font);
+        is_nerd_font(font)
+    })
+}
+
+// Parsed PCI database: vendor_id -> (vendor_name, device_id -> device_name)
+pub type PciDatabase = HashMap<String, (String, HashMap<String, String>)>;
+static PCI_DB: OnceLock<Option<PciDatabase>> = OnceLock::new();
+
+pub fn get_pci_database() -> &'static Option<PciDatabase> {
+    PCI_DB.get_or_init(|| {
+        let content = fs::read_to_string("/usr/share/hwdata/pci.ids")
+            .or_else(|_| fs::read_to_string("/usr/share/misc/pci.ids"))
+            .ok()?;
+
+        let mut db: PciDatabase = HashMap::new();
+        let mut current_vendor: Option<(String, String)> = None;
+
+        for line in content.lines() {
+            // Skip comments and empty lines
+            if line.starts_with('#') || line.is_empty() {
+                continue;
+            }
+
+            // Vendor line: starts with hex digit, no leading whitespace
+            if !line.starts_with('\t') && line.len() >= 4 {
+                if let Some(vendor_id) = line.get(..4) {
+                    if vendor_id.chars().all(|c| c.is_ascii_hexdigit()) {
+                        let vendor_name = line.get(4..).map(|s| s.trim().to_string()).unwrap_or_default();
+                        current_vendor = Some((vendor_id.to_lowercase(), vendor_name));
+                        db.insert(vendor_id.to_lowercase(), (line.get(4..).map(|s| s.trim().to_string()).unwrap_or_default(), HashMap::new()));
+                    }
+                }
+            }
+            // Device line: starts with single tab + hex digit
+            else if line.starts_with('\t') && !line.starts_with("\t\t") {
+                if let Some((vendor_id, _)) = &current_vendor {
+                    let trimmed = line.trim_start_matches('\t');
+                    if trimmed.len() >= 4 {
+                        if let Some(device_id) = trimmed.get(..4) {
+                            if device_id.chars().all(|c| c.is_ascii_hexdigit()) {
+                                let device_name = trimmed.get(4..).map(|s| s.trim().to_string()).unwrap_or_default();
+                                if let Some((_, devices)) = db.get_mut(vendor_id) {
+                                    devices.insert(device_id.to_lowercase(), device_name);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Some(db)
+    })
+}
 
 // Helper to read the first line of a file, yeah ik this dumb dont @ me
 pub fn read_first_line(path: &str) -> Option<String> {
@@ -49,10 +113,9 @@ pub fn create_bar_ascii(usage_percent: f64) -> String {
     format!("[{}{}]", "=".repeat(filled_blocks), " ".repeat(empty_blocks))
 }
 
-// Draw the bar, auto-selecting style based on font
+// Draw the bar, auto-selecting style based on font (cached)
 pub fn create_bar(usage_percent: f64) -> String {
-    let font = find_font();
-    if is_nerd_font(&font) {
+    if get_cached_is_nerd_font() {
         create_bar_pretty(usage_percent)
     } else {
         create_bar_ascii(usage_percent)

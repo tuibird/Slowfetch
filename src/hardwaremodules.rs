@@ -4,7 +4,7 @@
 use std::fs;
 use std::process::Command;
 
-use crate::helpers::{create_bar, read_first_line};
+use crate::helpers::{create_bar, get_pci_database, read_first_line};
 
 // Get the CPU model name with boost clock.
 pub fn cpu() -> String {
@@ -149,17 +149,15 @@ fn gpu_from_glxinfo() -> Option<String> {
     None
 }
 
-// Get GPU name from sysfs + pci.ids database
+// Get GPU name from sysfs + pci.ids database (using cached HashMap)
 fn gpu_from_sysfs() -> Option<String> {
     let drm_path = std::path::Path::new("/sys/class/drm");
     if !drm_path.exists() {
         return None;
     }
 
-    // Load pci.ids database
-    let pci_ids = fs::read_to_string("/usr/share/hwdata/pci.ids")
-        .or_else(|_| fs::read_to_string("/usr/share/misc/pci.ids"))
-        .ok()?;
+    // Get cached PCI database
+    let pci_db = get_pci_database().as_ref()?;
 
     for entry in fs::read_dir(drm_path).ok()?.flatten() {
         let name = entry.file_name();
@@ -184,51 +182,23 @@ fn gpu_from_sysfs() -> Option<String> {
         let vendor_id = parts[0].to_lowercase();
         let device_id = parts[1].to_lowercase();
 
-        let vendor_name = lookup_pci_vendor(&pci_ids, &vendor_id);
-        let device_name = lookup_pci_device(&pci_ids, &vendor_id, &device_id)?;
+        // O(1) HashMap lookup instead of O(n) linear scan
+        let (vendor_name, devices) = pci_db.get(&vendor_id)?;
+        let device_name = devices.get(&device_id)?;
 
         // Extract the part in brackets if present
         let display_name = device_name
             .find('[')
             .and_then(|start| device_name.rfind(']').map(|end| &device_name[start + 1..end]))
-            .unwrap_or(&device_name);
+            .unwrap_or(device_name);
 
         let vendor_short = vendor_name
-            .as_deref()
-            .and_then(|v| v.find('[').and_then(|start| v.rfind(']').map(|end| &v[start + 1..end])))
+            .find('[')
+            .and_then(|start| vendor_name.rfind(']').map(|end| &vendor_name[start + 1..end]))
             .and_then(|s| s.split('/').next())
             .unwrap_or("GPU");
 
         return Some(format!("{} {}", vendor_short, display_name));
-    }
-    None
-}
-
-fn lookup_pci_vendor(pci_ids: &str, vendor_id: &str) -> Option<String> {
-    for line in pci_ids.lines() {
-        if line.starts_with(vendor_id) && line.chars().nth(4) == Some(' ') {
-            return Some(line[4..].trim().to_string());
-        }
-    }
-    None
-}
-
-fn lookup_pci_device(pci_ids: &str, vendor_id: &str, device_id: &str) -> Option<String> {
-    let mut in_vendor = false;
-    for line in pci_ids.lines() {
-        if line.starts_with(vendor_id) && line.chars().nth(4) == Some(' ') {
-            in_vendor = true;
-            continue;
-        }
-        if in_vendor && !line.starts_with('\t') && !line.is_empty() && !line.starts_with('#') {
-            break;
-        }
-        if in_vendor && line.starts_with('\t') && !line.starts_with("\t\t") {
-            let trimmed = line.trim_start_matches('\t');
-            if trimmed.starts_with(device_id) && trimmed.chars().nth(4) == Some(' ') {
-                return Some(trimmed[4..].trim().to_string());
-            }
-        }
     }
     None
 }

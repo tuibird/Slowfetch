@@ -64,12 +64,11 @@ fn build_box(
     target_height: Option<usize>,
     center_content: bool,
 ) -> Vec<String> {
+    // Cache visible lengths for all lines upfront (avoids repeated ANSI stripping)
+    let line_lengths: Vec<usize> = lines.iter().map(|line| visible_len(line)).collect();
+
     // Find the widest line in our content ignoring those sneaky ANSI codes
-    let content_width = lines
-        .iter()
-        .map(|line| visible_len(line))
-        .max()
-        .unwrap_or(0);
+    let content_width = line_lengths.iter().copied().max().unwrap_or(0);
     // If title is present, ensure width accommodates it
     let title_len = title.map_or(0, |title_text| title_text.chars().count());
     // Make sure the box is wide enough for both content AND title (no squishing allowed!)
@@ -87,6 +86,10 @@ fn build_box(
     let bottom_v_padding = total_v_padding - top_v_padding; // The rest goes down there
 
     let mut result = Vec::with_capacity(max_height);
+
+    // Pre-compute reusable strings
+    let border_vertical = color_border(&BOX_VERTICAL.to_string());
+    let empty_row = format!("{}{}{}", border_vertical, repeat_char(' ', max_width + 2), border_vertical);
 
     // Top Border - Let's make it fancy!
     let mut top = String::with_capacity(max_width + 32); // Extra space for ANSI codes
@@ -110,18 +113,13 @@ fn build_box(
     top.push_str(&color_border(&BOX_TOP_RIGHT.to_string()));
     result.push(top);
 
-    // Vertical Padding top
-    if top_v_padding > 0 {
-        let border_char = color_border(&BOX_VERTICAL.to_string());
-        let empty_row = format!("{}{}{}", border_char, repeat_char(' ', max_width + 2), border_char);
-        for _ in 0..top_v_padding {
-            result.push(empty_row.clone());
-        }
+    // Vertical Padding top (reuse pre-built empty_row)
+    for _ in 0..top_v_padding {
+        result.push(empty_row.clone());
     }
 
-    // Content
-    for line in lines {
-        let line_len = visible_len(line);
+    // Content (use cached line lengths)
+    for (line, &line_len) in lines.iter().zip(line_lengths.iter()) {
         let padding = max_width.saturating_sub(line_len);
 
         // Should we center this line or push it to the left?
@@ -133,7 +131,7 @@ fn build_box(
         };
 
         let mut row = String::with_capacity(max_width + 32);
-        row.push_str(&color_border(&BOX_VERTICAL.to_string()));
+        row.push_str(&border_vertical);
 
         row.push(' '); // Left margin
         row.push_str(&repeat_char(' ', left_pad));
@@ -141,17 +139,13 @@ fn build_box(
         row.push_str(&repeat_char(' ', right_pad));
         row.push(' '); // Right margin
 
-        row.push_str(&color_border(&BOX_VERTICAL.to_string()));
+        row.push_str(&border_vertical);
         result.push(row);
     }
 
-    // Vertical Padding bottom
-    if bottom_v_padding > 0 {
-        let border_char = color_border(&BOX_VERTICAL.to_string());
-        let empty_row = format!("{}{}{}", border_char, repeat_char(' ', max_width + 2), border_char);
-        for _ in 0..bottom_v_padding {
-            result.push(empty_row.clone());
-        }
+    // Vertical Padding bottom (reuse pre-built empty_row)
+    for _ in 0..bottom_v_padding {
+        result.push(empty_row.clone());
     }
 
     // Bottom Border
