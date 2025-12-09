@@ -1,16 +1,16 @@
-{5}                /\ 
-{5}               /uh\
-{5}              /arch\
-{5}             /btwbtw\
-{5}            /btwbtwbt\
-{5}           /btwbtwbtwb\
-{5}          /btwbtwbtwbtw\
-{5}         /btwbtwbtwbtwbt\
-{5}        /btwbtwbtwbtwbtwb\
-{5}       /btwbtwbtwbtwbtwbtw\
-{5}      /btwbtwbt/\_/\btwbtwb\
-{5}     /btwbtwbt      btwbtwbt\
-{5}    /btwbtwbt|       |btwbtwb\
-{5}   /btwbtwbtwb-     -btwbtwbtw\
-{5}  /btwbtw-`            `-btwbtw\
-{5} /btwbt`                  `btwbt\
+{5}               ◢◣ 
+{5}              ◢██◣
+{5}             ◢████◣ 
+{5}            ◢██████◣ 
+{5}           ◢████████◣
+{5}          ◢██████████◣
+{5}         ◢████████████◣
+{5}        ◢██████████████◣
+{5}       ◢████████████████◣
+{5}      ◢██████████████████◣
+{5}     ◢████████◤   ◥███████◣
+{5}    ◢████████◤     ◥███████◣
+{5}   ◢█████████       ████████◣
+{5}  ◢██████◤            ◥██████◣
+{5} ◢██████◤              ◥██████◣
+{5}◢██████◤                ◥██████◣
