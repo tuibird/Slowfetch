@@ -1,6 +1,7 @@
 //Slowfetch by Tūī
 
 mod asciimodule;
+mod cache;
 mod colorcontrol;
 mod configloader;
 mod coremodules;
@@ -21,12 +22,21 @@ use std::thread;
 #[command(name = "slowfetch", about = "A slow system info fetcher")]
 struct Args {
     // Display OS-specific art. Optionally specify OS name (example: --os arch)
-    #[arg(long = "os", num_args = 0..=1, default_missing_value = "")]
+    #[arg(short = 'o', long = "os", num_args = 0..=1, default_missing_value = "")]
     os_art: Option<String>,
+
+    // Force refresh of cached values (OS name and GPU)
+    #[arg(short = 'r', long = "refresh")]
+    refresh: bool,
 }
 
 fn main() {
     let args = Args::parse();
+
+    // Set cache refresh flag if --refresh/-r was passed
+    if args.refresh {
+        cache::set_force_refresh(true);
+    }
 
     // Load config first and initialize colors before spawning threads
     let config = configloader::load_config();

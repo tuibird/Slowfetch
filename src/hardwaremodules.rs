@@ -4,6 +4,7 @@
 use std::fs;
 use std::process::Command;
 
+use crate::cache;
 use crate::helpers::{create_bar, get_pci_database, read_first_line};
 
 // Get the CPU model name with boost clock.
@@ -86,8 +87,25 @@ pub fn memory() -> String {
 }
 
 // Get the GPU model.
-// Tries vulkaninfo first for speed, then glxinfo for slightly less speed, then sysfs + pci.ids, then lspci as final fallback
+// Uses persistent cache to avoid slow subprocess calls on repeated runs.
+// If cache isnt used, it tries vulkaninfo first for speed, then glxinfo, then sysfs + pci.ids, then lspci as final fallback
 pub fn gpu() -> String {
+    // Check cache first (unless --refresh was passed)
+    if let Some(cached) = cache::get_cached_gpu() {
+        return cached;
+    }
+
+    // No cache hit, fetch fresh value
+    let result = gpu_fresh();
+
+    // Cache the result for next time
+    cache::cache_gpu(&result);
+
+    result
+}
+
+// Fetch GPU info fresh (no cache)
+fn gpu_fresh() -> String {
     // Try vulkaninfo first - fastest option (~19ms)
     if let Some(name) = gpu_from_vulkaninfo() {
         return name;
