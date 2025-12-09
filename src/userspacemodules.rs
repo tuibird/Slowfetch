@@ -61,7 +61,7 @@ pub fn packages() -> String {
     if let Ok(entries) = fs::read_dir("/var/lib/pacman/local") {
         let count = entries.filter(|e| e.is_ok()).count();
         if count > 0 {
-            counts.push(format!("{} 󰮯 ", count));
+            counts.push(format!("󰮯 {}", count));
         }
     }
 
@@ -72,7 +72,7 @@ pub fn packages() -> String {
             .filter(|line| line == &"Status: install ok installed")
             .count();
         if count > 0 {
-            counts.push(format!("{}  ", count));
+            counts.push(format!(" {}", count));
         }
     }
 
@@ -83,7 +83,7 @@ pub fn packages() -> String {
         if let Ok(output) = Command::new("rpm").arg("-qa").output() {
             let count = String::from_utf8_lossy(&output.stdout).lines().count();
             if count > 0 {
-                counts.push(format!("{} ", count));
+                counts.push(format!(" {}", count));
             }
         }
     }
@@ -92,7 +92,7 @@ pub fn packages() -> String {
     if let Ok(entries) = fs::read_dir("/var/lib/flatpak/app") {
         let count = entries.filter(|e| e.is_ok()).count();
         if count > 0 {
-            counts.push(format!("{}  ", count));
+            counts.push(format!("  {}", count));
         }
     }
 
@@ -107,7 +107,7 @@ pub fn packages() -> String {
                     .filter(|l| !l.is_empty()) //hopefully counting non empty lines
                     .count();
                 if count > 0 {
-                    counts.push(format!("{}  ", count));
+                    counts.push(format!(" {}", count));
                 }
             }
         }
@@ -121,7 +121,7 @@ pub fn packages() -> String {
                 .filter(|e| e.path().is_dir())
                 .count();
             if count > 0 {
-                counts.push(format!("{}  ", count));
+                counts.push(format!(" {}", count));
             }
         }
     }
@@ -129,7 +129,7 @@ pub fn packages() -> String {
     if counts.is_empty() {
         "unknown".to_string()
     } else {
-        counts.join("| ")
+        counts.join(" | ")
     }
 }
 
@@ -260,4 +260,28 @@ pub fn ui() -> String {
     }
 
     "unknown".to_string()
+}
+
+// Get the user's preferred editor from environment variables.
+// Returns empty string if unset or set to nano (system default)
+pub fn editor() -> String {
+    let visual = env::var("VISUAL").ok();
+    let editor = env::var("EDITOR").ok();
+
+    // Helper to extract and format editor name
+    let format_editor = |path: &str| -> Option<String> {
+        let name = path.split('/').last().unwrap_or(path);
+        if name == "nano" {
+            None
+        } else {
+            Some(capitalize(name))
+        }
+    };
+
+    match (visual.as_deref().and_then(format_editor), editor.as_deref().and_then(format_editor)) {
+        (Some(v), Some(e)) if v != e => format!("󰍹 {} |  {}", v, e),
+        (Some(v), _) => v,
+        (None, Some(e)) => e,
+        (None, None) => String::new(),
+    }
 }

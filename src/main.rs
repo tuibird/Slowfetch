@@ -60,6 +60,7 @@ fn main() {
     let shell_handler = thread::spawn(userspacemodules::shell);
     let wm_handler = thread::spawn(userspacemodules::wm);
     let ui_handler = thread::spawn(userspacemodules::ui);
+    let editor_handler = thread::spawn(userspacemodules::editor);
     let font_handler = thread::spawn(fontmodule::find_font);
 
     // ASCII art (spawned after colors are initialized)
@@ -112,35 +113,41 @@ fn main() {
         ],
     );
 
-    let userspace = Section::new(
-        "Userspace",
-        vec![
-            (
-                "Packages".to_string(),
-                packages_handler.join().unwrap_or_else(|_| "error".into()),
-            ),
-            (
-                "Terminal".to_string(),
-                terminal_handler.join().unwrap_or_else(|_| "error".into()),
-            ),
-            (
-                "Shell".to_string(),
-                shell_handler.join().unwrap_or_else(|_| "error".into()),
-            ),
-            (
-                "WM".to_string(),
-                wm_handler.join().unwrap_or_else(|_| "error".into()),
-            ),
-            (
-                "UI".to_string(),
-                ui_handler.join().unwrap_or_else(|_| "error".into()),
-            ),
-            (
-                "Terminal Font".to_string(),
-                font_handler.join().unwrap_or_else(|_| "error".into()),
-            ),
-        ],
-    );
+    let editor_result = editor_handler.join().unwrap_or_else(|_| "error".into());
+
+    let mut userspace_lines = vec![
+        (
+            "Packages".to_string(),
+            packages_handler.join().unwrap_or_else(|_| "error".into()),
+        ),
+        (
+            "Terminal".to_string(),
+            terminal_handler.join().unwrap_or_else(|_| "error".into()),
+        ),
+        (
+            "Shell".to_string(),
+            shell_handler.join().unwrap_or_else(|_| "error".into()),
+        ),
+        (
+            "WM".to_string(),
+            wm_handler.join().unwrap_or_else(|_| "error".into()),
+        ),
+        (
+            "UI".to_string(),
+            ui_handler.join().unwrap_or_else(|_| "error".into()),
+        ),
+    ];
+
+    if !editor_result.is_empty() {
+        userspace_lines.push(("Editor".to_string(), editor_result));
+    }
+
+    userspace_lines.push((
+        "Terminal Font".to_string(),
+        font_handler.join().unwrap_or_else(|_| "error".into()),
+    ));
+
+    let userspace = Section::new("Userspace", userspace_lines);
 
     let (wide_logo, medium_logo, narrow_logo) =
         ascii_handler.join().expect("ASCII thread panicked");
