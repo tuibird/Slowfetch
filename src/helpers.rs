@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::sync::OnceLock;
-use crate::fontmodule::{find_font, is_nerd_font};
+use crate::modules::fontmodule::{find_font, is_nerd_font};
 
 // Cache for font detection - only computed once
 static CACHED_FONT: OnceLock<String> = OnceLock::new();

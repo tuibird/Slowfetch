@@ -14,7 +14,7 @@ const BOX_VERTICAL: char = '│';
 
 // Strip ANSI codes to get visible width.
 // Because colored text is a liar about its actual length!
-fn visible_len(text: &str) -> usize {
+pub fn visible_len(text: &str) -> usize {
     let mut len = 0;
     let mut in_escape = false;
     for character in text.chars() {
@@ -48,7 +48,7 @@ impl Section {
 
 // Helper to create a string of repeated characters
 // Like hitting your head against a wall
-fn repeat_char(character: char, count: usize) -> String {
+pub fn repeat_char(character: char, count: usize) -> String {
     let mut result = String::with_capacity(count * character.len_utf8());
     for _ in 0..count {
         result.push(character); // Push it real good
@@ -57,7 +57,7 @@ fn repeat_char(character: char, count: usize) -> String {
 }
 
 // Function to build a box around content
-fn build_box(
+pub fn build_box(
     lines: &[String],
     title: Option<&str>,
     target_width: Option<usize>,
@@ -159,7 +159,7 @@ fn build_box(
 }
 
 // turning boring data into pretty boxes
-fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -> Vec<String> {
+pub fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -> Vec<String> {
     // 1. Format info lines with colors (make it pretty
     let formatted_sections: Vec<Vec<String>> = sections
         .iter()
@@ -391,3 +391,5 @@ pub fn draw_layout(
 
     output
 }
+
+

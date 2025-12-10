@@ -5,27 +5,27 @@ use crate::colorcontrol::get_art_colors;
 use inkline::AsciiArt;
 
 // The ASCII art for the Slowfetch logo Wide version.
-const ASCII_ART_WIDE: &str = include_str!("assets/default/wide.txt");
+const ASCII_ART_WIDE: &str = include_str!("../assets/default/wide.txt");
 
 // The ASCII art for the Slowfetch logo medium version.
-const ASCII_ART_MEDIUM: &str = include_str!("assets/default/medium.txt");
+const ASCII_ART_MEDIUM: &str = include_str!("../assets/default/medium.txt");
 
 // The ASCII art for the Slowfetch logo narrow version.
-const ASCII_ART_NARROW: &str = include_str!("assets/default/narrow.txt");
+const ASCII_ART_NARROW: &str = include_str!("../assets/default/narrow.txt");
 
 // OS-specific ASCII art
-const ASCII_ART_ARCH: &str = include_str!("assets/arch.txt");
-const ASCII_ART_CACHYOS: &str = include_str!("assets/cachy.txt");
-const ASCII_ART_FEDORA: &str = include_str!("assets/fedora.txt");
-const ASCII_ART_UBUNTU: &str = include_str!("assets/ubuntu.txt");
-const ASCII_ART_NIX: &str = include_str!("assets/nix.txt");
+const ASCII_ART_ARCH: &str = include_str!("../assets/arch.txt");
+const ASCII_ART_CACHYOS: &str = include_str!("../assets/cachy.txt");
+const ASCII_ART_FEDORA: &str = include_str!("../assets/fedora.txt");
+const ASCII_ART_UBUNTU: &str = include_str!("../assets/ubuntu.txt");
+const ASCII_ART_NIX: &str = include_str!("../assets/nix.txt");
 
 // Smol versions of OS-specific ASCII art
-const ASCII_ART_ARCH_SMOL: &str = include_str!("assets/archsmol.txt");
-const ASCII_ART_CACHYOS_SMOL: &str = include_str!("assets/cachysmol.txt");
-const ASCII_ART_FEDORA_SMOL: &str = include_str!("assets/fedorasmol.txt");
-const ASCII_ART_UBUNTU_SMOL: &str = include_str!("assets/ubuntusmol.txt");
-const ASCII_ART_NIX_SMOL: &str = include_str!("assets/nixsmol.txt");
+const ASCII_ART_ARCH_SMOL: &str = include_str!("../assets/archsmol.txt");
+const ASCII_ART_CACHYOS_SMOL: &str = include_str!("../assets/cachysmol.txt");
+const ASCII_ART_FEDORA_SMOL: &str = include_str!("../assets/fedorasmol.txt");
+const ASCII_ART_UBUNTU_SMOL: &str = include_str!("../assets/ubuntusmol.txt");
+const ASCII_ART_NIX_SMOL: &str = include_str!("../assets/nixsmol.txt");
 
 // Render the wide ASCII art logo and return lines as a Vec
 pub fn get_wide_logo_lines() -> Vec<String> {
