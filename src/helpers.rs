@@ -146,3 +146,58 @@ pub fn get_noctalia_scheme() -> Option<String> {
     }
     None
 }
+
+pub fn get_dms_theme() -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    let path = format!("{}/.config/DankMaterialShell/settings.json", home);
+
+    if let Ok(content) = fs::read_to_string(&path) {
+        let mut theme_name: Option<String> = None;
+        let mut custom_theme_file: Option<String> = None;
+
+        for line in content.lines() {
+            if line.contains("\"currentThemeName\"") {
+                let parts: Vec<&str> = line.split(':').collect();
+                if parts.len() >= 2 {
+                    let value = parts[1].trim();
+                    let clean_value = value.trim_matches(|c| c == '"' || c == ',' || c == ' ');
+                    if clean_value.to_lowercase().contains("default") {
+                        return None;
+                    }
+                    theme_name = Some(clean_value.to_string());
+                }
+            }
+            if line.contains("\"customThemeFile\"") {
+                let parts: Vec<&str> = line.split(':').collect();
+                if parts.len() >= 2 {
+                    let value = parts[1..].join(":");
+                    let clean_value = value.trim().trim_matches(|c| c == '"' || c == ',' || c == ' ');
+                    custom_theme_file = Some(clean_value.to_string());
+                }
+            }
+        }
+
+        // If theme is "custom", read the custom theme file for the actual name
+        if let Some(ref name) = theme_name {
+            if name.to_lowercase() == "custom" {
+                if let Some(custom_path) = custom_theme_file {
+                    if let Ok(custom_content) = fs::read_to_string(&custom_path) {
+                        for line in custom_content.lines() {
+                            if line.contains("\"name\"") {
+                                let parts: Vec<&str> = line.split(':').collect();
+                                if parts.len() >= 2 {
+                                    let value = parts[1].trim();
+                                    let clean_value = value.trim_matches(|c| c == '"' || c == ',' || c == ' ');
+                                    return Some(clean_value.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return theme_name;
+    }
+    None
+}

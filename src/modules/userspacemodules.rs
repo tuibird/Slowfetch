@@ -5,7 +5,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crate::helpers::{capitalize, get_noctalia_scheme};
+use crate::helpers::{capitalize, get_dms_theme, get_noctalia_scheme};
 
 /// Get the active shell with version.
 pub fn shell() -> String {
@@ -200,7 +200,6 @@ pub fn wm() -> String {
 }
 
 // Get the active terminal
-// i hope this works with foot, because i aint installing that shit
 pub fn terminal() -> String {
     // Check for specific terminal environment variables first
     if env::var("KITTY_PID").is_ok() {
@@ -245,6 +244,17 @@ pub fn ui() -> String {
                     }
                     return name;
                 }
+                if cmdline.contains("dms") {
+                    let mut name = "DMS".to_string();
+                    if let Some(theme) = get_dms_theme() {
+                        let formatted_theme = theme
+                            .replace("cat-", "Catppuccin (")
+                            + if theme.starts_with("cat-") { ")" } else { "" };
+                        name = format!("{} |  {}", name, capitalize(&formatted_theme));
+                    }
+                    return name;
+                }
+
                 //i know this janky but idk
                 if cmdline.contains("plasmashell") {
                     return "Plasma Shell".to_string();
@@ -263,7 +273,7 @@ pub fn ui() -> String {
 }
 
 // Get the user's preferred editor from environment variables.
-// Returns empty string if unset or set to nano (system default)
+// Returns empty string if unset or set to nano (dont @ me)
 pub fn editor() -> String {
     let visual = env::var("VISUAL").ok();
     let editor = env::var("EDITOR").ok();
@@ -282,6 +292,6 @@ pub fn editor() -> String {
         (Some(v), Some(e)) if v != e => format!("󰍹 {} |  {}", v, e),
         (Some(v), _) => v,
         (None, Some(e)) => e,
-        (None, None) => String::new(),
+        (None, None) => String::new()
     }
 }

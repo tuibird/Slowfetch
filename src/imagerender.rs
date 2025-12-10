@@ -98,7 +98,7 @@ pub fn draw_image_layout(sections: &[Section], image_path: &std::path::Path) {
                 print!("{}", img_output);
                 let _ = std::io::stdout().flush();
             }
-            Err(e) => eprintln!("Image error: {}", e),
+            Err(image_error) => eprintln!("Image error: {}", image_error),
         }
 
         // Move cursor back down to after the layout
@@ -106,26 +106,30 @@ pub fn draw_image_layout(sections: &[Section], image_path: &std::path::Path) {
         let _ = std::io::stdout().flush();
     } else {
         // Narrow layout: stacked (image on top, sections below)
-        // Use a smaller square image box that fits the terminal width
-        let narrow_image_width = (term_width.saturating_sub(4)).min(sections_width); // fit within terminal
-        let narrow_image_height = (narrow_image_width as f64 / 2.0) as usize; // ~square aspect ratio
+        // Image box maintains 1:1 aspect ratio based on sections_box_width
+        // Terminal cells are ~2:1 height:width ratio
+        // Box visual width = sections_width + 6 (content + 2 borders + 2 internal padding)
+        // Box visual height = (sections_width + 6) / 2 for 1:1 aspect
+        let image_content_width = sections_width;
+        let image_box_total_height = ((sections_width + 6) as f64 / 2.0).ceil() as usize;
+        let image_content_height = image_box_total_height.saturating_sub(2); // content area for image
 
         // Check if we have enough vertical space for stacked layout
-        let stacked_height = narrow_image_height + 2 + sections_height; // +2 for image box borders
+        let stacked_height = image_box_total_height + sections_height;
 
-        if term_height >= stacked_height && narrow_image_width > 8 {
-            // Build image box
+        if term_height >= stacked_height && image_content_width > 8 {
+            // Build image box (target_height is total box height)
             let empty_lines: Vec<String> = Vec::new();
             let image_box = build_box(
                 &empty_lines,
                 None,
-                Some(narrow_image_width),
-                Some(narrow_image_height + 2), // +2 for borders
+                Some(image_content_width),
+                Some(image_box_total_height),
                 true,
             );
 
             // Build sections with matching width
-            let sections_box = build_sections_lines(sections, Some(narrow_image_width));
+            let sections_box = build_sections_lines(sections, Some(image_content_width));
 
             // Print image box
             let mut output = String::new();
@@ -152,19 +156,19 @@ pub fn draw_image_layout(sections: &[Section], image_path: &std::path::Path) {
             let _ = std::io::stdout().flush();
 
             // Display the image
-            match crate::image::display_image(image_path, narrow_image_width as u16, narrow_image_height as u16) {
+            match crate::image::display_image(image_path, image_content_width as u16, image_content_height as u16) {
                 Ok(img_output) => {
                     print!("{}", img_output);
                     let _ = std::io::stdout().flush();
                 }
-                Err(e) => eprintln!("Image error: {}", e),
+                Err(image_error) => eprintln!("Image error: {}", image_error),
             }
 
             // Move cursor back down
             println!("\x1b[{}B", total_lines);
             let _ = std::io::stdout().flush();
         } else {
-            // Too narrow even for stacked - just show sections
+            // not enough terminal space, just draw fetch content
             let sections_box = build_sections_lines(sections, None);
 
             for line in &sections_box {
