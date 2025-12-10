@@ -77,11 +77,11 @@ pub fn memory() -> String {
         let usage_percent = (used as f64 / total as f64) * 100.0;
         let bar = create_bar(usage_percent);
 
-        // Convert to GiB
-        let used_gib = used as f64 / (1024.0 * 1024.0);
-        let total_gib = total as f64 / (1024.0 * 1024.0);
+        // Convert to GB (decimal: 1 KB = 1000 bytes, meminfo reports in KB)
+        let used_gb = used as f64 / 1_000_000.0;
+        let total_gb = total as f64 / 1_000_000.0;
 
-        return format!(" {} {:.0}GB/{:.0}GB", bar, used_gib, total_gib);
+        return format!(" {} {:.0}GB/{:.0}GB", bar, used_gb, total_gb);
     }
     "unknown".to_string()
 }
@@ -296,8 +296,9 @@ pub fn storage() -> String {
             let usage_percent = (used_bytes as f64 / total_bytes as f64) * 100.0;
             let bar = create_bar(usage_percent);
 
-            let used_gb = used_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
-            let total_gb = total_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+            // Convert to GB (decimal: 1 GB = 1,000,000,000 bytes)
+            let used_gb = used_bytes as f64 / 1_000_000_000.0;
+            let total_gb = total_bytes as f64 / 1_000_000_000.0;
 
             return format!("{} {:.0}GB/{:.0}GB", bar, used_gb, total_gb);
         }

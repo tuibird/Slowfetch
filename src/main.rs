@@ -1,16 +1,14 @@
 //Slowfetch by Tūī
 
-mod asciimodule;
 mod cache;
 mod colorcontrol;
 mod configloader;
-mod coremodules;
-mod fontmodule;
-mod hardwaremodules;
 mod helpers;
+mod image;
+mod imagerender;
+mod modules;
 mod renderer;
 mod terminalsize;
-mod userspacemodules;
 
 use clap::Parser;
 use configloader::OsArtSetting;
@@ -28,6 +26,10 @@ struct Args {
     // Force refresh of cached values (OS name and GPU)
     #[arg(short = 'r', long = "refresh")]
     refresh: bool,
+
+    // Display image instead of ASCII art (uses Kitty graphics protocol)
+    #[arg(short = 'i', long = "image", num_args = 0..=1, default_missing_value = "")]
+    image: Option<String>,
 }
 
 fn main() {
@@ -44,31 +46,31 @@ fn main() {
 
     // Spawn a thread for each individual info function for maximum parallelism
     // Core modules
-    let os_handler = thread::spawn(coremodules::os);
-    let kernel_handler = thread::spawn(coremodules::kernel);
-    let uptime_handler = thread::spawn(coremodules::uptime);
+    let os_handler = thread::spawn(modules::coremodules::os);
+    let kernel_handler = thread::spawn(modules::coremodules::kernel);
+    let uptime_handler = thread::spawn(modules::coremodules::uptime);
 
     // Hardware modules
-    let cpu_handler = thread::spawn(hardwaremodules::cpu);
-    let gpu_handler = thread::spawn(hardwaremodules::gpu);
-    let memory_handler = thread::spawn(hardwaremodules::memory);
-    let storage_handler = thread::spawn(hardwaremodules::storage);
+    let cpu_handler = thread::spawn(modules::hardwaremodules::cpu);
+    let gpu_handler = thread::spawn(modules::hardwaremodules::gpu);
+    let memory_handler = thread::spawn(modules::hardwaremodules::memory);
+    let storage_handler = thread::spawn(modules::hardwaremodules::storage);
 
     // Userspace modules
-    let packages_handler = thread::spawn(userspacemodules::packages);
-    let terminal_handler = thread::spawn(userspacemodules::terminal);
-    let shell_handler = thread::spawn(userspacemodules::shell);
-    let wm_handler = thread::spawn(userspacemodules::wm);
-    let ui_handler = thread::spawn(userspacemodules::ui);
-    let editor_handler = thread::spawn(userspacemodules::editor);
-    let font_handler = thread::spawn(fontmodule::find_font);
+    let packages_handler = thread::spawn(modules::userspacemodules::packages);
+    let terminal_handler = thread::spawn(modules::userspacemodules::terminal);
+    let shell_handler = thread::spawn(modules::userspacemodules::shell);
+    let wm_handler = thread::spawn(modules::userspacemodules::wm);
+    let ui_handler = thread::spawn(modules::userspacemodules::ui);
+    let editor_handler = thread::spawn(modules::userspacemodules::editor);
+    let font_handler = thread::spawn(modules::fontmodule::find_font);
 
     // ASCII art (spawned after colors are initialized)
     let ascii_handler = thread::spawn(|| {
         (
-            asciimodule::get_wide_logo_lines(),
-            asciimodule::get_medium_logo_lines(),
-            asciimodule::get_narrow_logo_lines(),
+            modules::asciimodule::get_wide_logo_lines(),
+            modules::asciimodule::get_medium_logo_lines(),
+            modules::asciimodule::get_narrow_logo_lines(),
         )
     });
 
@@ -149,55 +151,77 @@ fn main() {
 
     let userspace = Section::new("Userspace", userspace_lines);
 
-    let (wide_logo, medium_logo, narrow_logo) =
-        ascii_handler.join().expect("ASCII thread panicked");
+    // Check if image mode is requested AND terminal supports it
+    if args.image.is_some() && image::supports_kitty_graphics() {
+        let image_arg = args.image.as_ref().unwrap();
 
-    // Determine OS art setting: CLI args override config
-    let os_art_setting = if let Some(ref os_override) = args.os_art {
-        if os_override.is_empty() {
-            OsArtSetting::Auto
+        // Determine image path (expand ~ to home directory)
+        let image_path = if image_arg.is_empty() {
+            image::get_default_image_path()
+        } else if image_arg.starts_with("~/") {
+            if let Some(home) = std::env::var_os("HOME") {
+                std::path::PathBuf::from(home).join(&image_arg[2..])
+            } else {
+                std::path::PathBuf::from(image_arg)
+            }
         } else {
-            OsArtSetting::Specific(os_override.clone())
-        }
+            std::path::PathBuf::from(image_arg)
+        };
+
+        // Draw image layout (imagerender handles all the logic)
+        imagerender::draw_image_layout(&[core, hardware, userspace], &image_path);
     } else {
-        config.os_art
-    };
+        // Standard ASCII art mode
+        let (wide_logo, medium_logo, narrow_logo) =
+            ascii_handler.join().expect("ASCII thread panicked");
 
-    // Apply OS art setting
-    let (wide, medium, narrow, smol) = match os_art_setting {
-        OsArtSetting::Disabled => (wide_logo, medium_logo, narrow_logo, None),
-        OsArtSetting::Auto => {
-            let os_name = core
-                .lines
-                .iter()
-                .find(|(k, _)| k == "OS")
-                .map(|(_, v)| v.as_str())
-                .unwrap_or("");
-            if let Some(os_logo) = asciimodule::get_os_logo_lines(os_name) {
-                let smol_logo = asciimodule::get_os_logo_lines_smol(os_name);
-                (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
+        // Determine OS art setting: CLI args override config
+        let os_art_setting = if let Some(ref os_override) = args.os_art {
+            if os_override.is_empty() {
+                OsArtSetting::Auto
             } else {
-                (wide_logo, medium_logo, narrow_logo, None)
+                OsArtSetting::Specific(os_override.clone())
             }
-        }
-        OsArtSetting::Specific(ref os_name) => {
-            if let Some(os_logo) = asciimodule::get_os_logo_lines(os_name) {
-                let smol_logo = asciimodule::get_os_logo_lines_smol(os_name);
-                (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
-            } else {
-                (wide_logo, medium_logo, narrow_logo, None)
-            }
-        }
-    };
+        } else {
+            config.os_art
+        };
 
-    print!(
-        "{}",
-        renderer::draw_layout(
-            &wide,
-            &medium,
-            &narrow,
-            &[core, hardware, userspace],
-            smol.as_deref()
-        )
-    );
+        // Apply OS art setting
+        let (wide, medium, narrow, smol) = match os_art_setting {
+            OsArtSetting::Disabled => (wide_logo, medium_logo, narrow_logo, None),
+            OsArtSetting::Auto => {
+                let os_name = core
+                    .lines
+                    .iter()
+                    .find(|(k, _)| k == "OS")
+                    .map(|(_, v)| v.as_str())
+                    .unwrap_or("");
+                if let Some(os_logo) = modules::asciimodule::get_os_logo_lines(os_name) {
+                    let smol_logo = modules::asciimodule::get_os_logo_lines_smol(os_name);
+                    (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
+                } else {
+                    (wide_logo, medium_logo, narrow_logo, None)
+                }
+            }
+            OsArtSetting::Specific(ref os_name) => {
+                if let Some(os_logo) = modules::asciimodule::get_os_logo_lines(os_name) {
+                    let smol_logo = modules::asciimodule::get_os_logo_lines_smol(os_name);
+                    (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
+                } else {
+                    (wide_logo, medium_logo, narrow_logo, None)
+                }
+            }
+        };
+
+        print!(
+            "{}",
+            renderer::draw_layout(
+                &wide,
+                &medium,
+                &narrow,
+                &[core, hardware, userspace],
+                smol.as_deref()
+            )
+        );
+    }
 }

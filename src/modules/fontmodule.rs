@@ -3,7 +3,7 @@
 
 use std::fs;
 use std::env;
-use crate::userspacemodules::terminal;
+use super::userspacemodules::terminal;
 
 // Get the terminal font by parsing config files
 pub fn find_font() -> String {
