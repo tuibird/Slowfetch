@@ -28,6 +28,6 @@ To install Slowfetch, pull the source and use the following command from the roo
 
 `cargo install --path .`
 
-## Example of the program and its dynamic layout
+## Example of the program and its dynamic width/height layout
 
 ![Slowfetch Screenshot](https://raw.githubusercontent.com/tuibird/Slowfetch/refs/heads/master/slowfetch0-2-5.png))
