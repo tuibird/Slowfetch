@@ -63,7 +63,7 @@ pub fn packages() -> String {
     let flatpak_handle = thread::spawn(|| {
         fs::read_dir("/var/lib/flatpak/app").ok().and_then(|entries| {
             let count = entries.filter(|e| e.is_ok()).count();
-            if count > 0 { Some(format!("  {}", count)) } else { None }
+            if count > 0 { Some(format!("  {}", count)) } else { None }
         })
     });
 

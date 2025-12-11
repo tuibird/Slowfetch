@@ -300,11 +300,16 @@ pub fn storage() -> String {
             let used_gb = used_bytes as f64 / 1_000_000_000.0;
             let total_gb = total_bytes as f64 / 1_000_000_000.0;
 
-            // Use TB if total is >= 1000GB, frees up horizontal line space
+            // Use TB for total if >= 1000GB, frees up horizontal line space
             if total_gb >= 1000.0 {
-                let used_tb = used_gb / 1000.0;
                 let total_tb = total_gb / 1000.0;
-                return format!("{} {:.2}TB/{:.2}TB", bar, used_tb, total_tb);
+                // Trim .00 if it's a whole number (e.g., 1.00TB -> 1TB)
+                let total_str = if (total_tb - total_tb.round()).abs() < 0.005 {
+                    format!("{}TB", total_tb.round() as u64)
+                } else {
+                    format!("{:.2}TB", total_tb)
+                };
+                return format!("{} {:.0}GB/{}", bar, used_gb, total_str);
             }
 
             return format!("{} {:.0}GB/{:.0}GB", bar, used_gb, total_gb);
