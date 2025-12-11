@@ -8,7 +8,24 @@ use crate::cache;
 use crate::helpers::{create_bar, get_pci_database, read_first_line};
 
 // Get the CPU model name with boost clock.
+// Uses persistent cache to avoid repeated /proc reads.
 pub fn cpu() -> String {
+    // Check cache first (unless --refresh was passed)
+    if let Some(cached) = cache::get_cached_cpu() {
+        return cached;
+    }
+
+    // No cache hit, fetch fresh value
+    let result = cpu_fresh();
+
+    // Cache the result for next time
+    cache::cache_cpu(&result);
+
+    result
+}
+
+// Fetch CPU info fresh (no cache)
+fn cpu_fresh() -> String {
     let model = if let Ok(content) = fs::read_to_string("/proc/cpuinfo") {
         content
             .lines()

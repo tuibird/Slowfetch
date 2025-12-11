@@ -66,3 +66,13 @@ pub fn get_cached_os() -> Option<String> {
 pub fn cache_os(value: &str) {
     let _ = write_cache("os", value);
 }
+
+// Read cached CPU value, or return None to trigger a fresh fetch.
+pub fn get_cached_cpu() -> Option<String> {
+    read_cache("cpu")
+}
+
+// Cache the CPU value
+pub fn cache_cpu(value: &str) {
+    let _ = write_cache("cpu", value);
+}
