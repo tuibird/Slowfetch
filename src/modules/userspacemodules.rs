@@ -4,6 +4,7 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::thread;
 
 use crate::helpers::{capitalize, get_dms_theme, get_noctalia_scheme};
 
@@ -57,6 +58,15 @@ pub fn shell() -> String {
 pub fn packages() -> String {
     let mut counts: Vec<String> = Vec::new();
 
+    // Spawn flatpak count in separate thread (runs in parallel with other checks)
+    // the thinking here most people have packages + flatpacks, so why not just get this out of the way
+    let flatpak_handle = thread::spawn(|| {
+        fs::read_dir("/var/lib/flatpak/app").ok().and_then(|entries| {
+            let count = entries.filter(|e| e.is_ok()).count();
+            if count > 0 { Some(format!("  {}", count)) } else { None }
+        })
+    });
+
     // Pacman - count directories in /var/lib/pacman/local/
     if let Ok(entries) = fs::read_dir("/var/lib/pacman/local") {
         let count = entries.filter(|e| e.is_ok()).count();
@@ -88,12 +98,9 @@ pub fn packages() -> String {
         }
     }
 
-    // Flatpak - count installed applications
-    if let Ok(entries) = fs::read_dir("/var/lib/flatpak/app") {
-        let count = entries.filter(|e| e.is_ok()).count();
-        if count > 0 {
-            counts.push(format!("  {}", count));
-        }
+    // Collect flatpak result (maintains display order after rpm)
+    if let Some(s) = flatpak_handle.join().ok().flatten() {
+        counts.push(s);
     }
 
     // Nix - count packages in user profile
