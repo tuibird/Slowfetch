@@ -3,6 +3,7 @@
 
 use crate::colorcontrol::get_art_colors;
 use inkline::AsciiArt;
+use std::fs;
 
 // The ASCII art for the Slowfetch logo Wide version.
 const ASCII_ART_WIDE: &str = include_str!("../assets/default/wide.txt");
@@ -94,4 +95,13 @@ pub fn get_os_logo_lines_smol(os_name: &str) -> Option<Vec<String>> {
         let art = AsciiArt::new(s, &colors, true);
         art.map(|line| line.to_string()).collect()
     })
+}
+
+// Load custom ASCII art from a file path
+// Returns None if file doesn't exist or can't be read
+pub fn get_custom_art_lines(path: &str) -> Option<Vec<String>> {
+    let content = fs::read_to_string(path).ok()?;
+    let colors = get_art_colors();
+    let art = AsciiArt::new(&content, &colors, true);
+    Some(art.map(|line| line.to_string()).collect())
 }

@@ -1,21 +1,30 @@
-# Slowfetch Configuration
+## Slowfetch Configuration
 
 [display]
-# Show OS-specific art instead of default Slowfetch logo
-# Set to true to auto-detect OS, or specify OS name to force that logo
-# os_art = true
+## Show OS-specific art instead of default Slowfetch logo
+## Set to true to auto-detect OS, or specify OS name to force that logo
 # os_art = "arch"
-os_art = false
+#os_art = false
+
+## Custom ASCII art file path (overrides default and OS art)
+## The file can use {1} through {9} for color placeholders
+# custom_art = "~/.config/slowfetch/my_art.txt"
+
+## Display image instead of ASCII art (uses Kitty graphics protocol)
+## Set to true and provide image_path to always show an image
+# image = false
+## use this path to set a custom image for the -i/--image arguments.
+#image_path = "~/.config/slowfetch/image.png"
 
 [colors]
-# Theme colors - use web hex format
+## Theme colors - use web hex format
 # border = "#FF79C6"  # Box borders (default: magenta/pink)
 # title = "#FF79C6"   # Section titles (default: magenta/pink)
 # key = "#BD93F9"     # Info keys (default: purple)
 # value = "#8BE9FD"   # Info values (default: cyan)
 
-# ASCII art colors - maps to {1} through {9} in art files
-# Default: rainbow spectrum
+## ASCII art colors - maps to {1} through {9} in art files
+## Default: rainbow spectrum
 
 # art_1 = "#FF0000"   # {1} - Red
 # art_2 = "#FF8000"   # {2} - Orange

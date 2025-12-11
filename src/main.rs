@@ -151,21 +151,36 @@ fn main() {
 
     let userspace = Section::new("Userspace", userspace_lines);
 
-    // Check if image mode is requested AND terminal supports it
-    if args.image.is_some() && image::supports_kitty_graphics() {
-        let image_arg = args.image.as_ref().unwrap();
+    // Check if image mode is requested (CLI arg or config) AND terminal supports it
+    let use_image = args.image.is_some() || (config.image && config.image_path.is_some());
 
-        // Determine image path (expand ~ to home directory)
-        let image_path = if image_arg.is_empty() {
-            image::get_default_image_path()
-        } else if image_arg.starts_with("~/") {
-            if let Some(home) = std::env::var_os("HOME") {
-                std::path::PathBuf::from(home).join(&image_arg[2..])
+    if use_image && image::supports_kitty_graphics() {
+        // Determine image path:
+        // 1. CLI arg with explicit path takes highest priority
+        // 2. CLI arg empty (-i/--image) uses config.image_path if set, else default
+        // 3. Config image=true uses config.image_path
+        let image_path = if let Some(ref image_arg) = args.image {
+            if image_arg.is_empty() {
+                // CLI flag without path - use config image_path if available
+                if let Some(ref config_path) = config.image_path {
+                    std::path::PathBuf::from(config_path)
+                } else {
+                    image::get_default_image_path()
+                }
+            } else if image_arg.starts_with("~/") {
+                // CLI flag with explicit path (expand ~)
+                if let Some(home) = std::env::var_os("HOME") {
+                    std::path::PathBuf::from(home).join(&image_arg[2..])
+                } else {
+                    std::path::PathBuf::from(image_arg)
+                }
             } else {
+                // CLI flag with explicit path
                 std::path::PathBuf::from(image_arg)
             }
         } else {
-            std::path::PathBuf::from(image_arg)
+            // Config image=true, use config image_path (already expanded in configloader)
+            std::path::PathBuf::from(config.image_path.as_ref().unwrap())
         };
 
         // Draw image layout (imagerender handles all the logic)
@@ -175,40 +190,50 @@ fn main() {
         let (wide_logo, medium_logo, narrow_logo) =
             ascii_handler.join().expect("ASCII thread panicked");
 
-        // Determine OS art setting: CLI args override config
-        let os_art_setting = if let Some(ref os_override) = args.os_art {
-            if os_override.is_empty() {
-                OsArtSetting::Auto
+        // Check for custom art first (overrides everything else)
+        let (wide, medium, narrow, smol) = if let Some(ref custom_path) = config.custom_art {
+            if let Some(custom_art) = modules::asciimodule::get_custom_art_lines(custom_path) {
+                (custom_art.clone(), custom_art.clone(), custom_art, None)
             } else {
-                OsArtSetting::Specific(os_override.clone())
+                // Custom art file not found, fall back to default
+                (wide_logo.clone(), medium_logo.clone(), narrow_logo.clone(), None)
             }
         } else {
-            config.os_art
-        };
-
-        // Apply OS art setting
-        let (wide, medium, narrow, smol) = match os_art_setting {
-            OsArtSetting::Disabled => (wide_logo, medium_logo, narrow_logo, None),
-            OsArtSetting::Auto => {
-                let os_name = core
-                    .lines
-                    .iter()
-                    .find(|(k, _)| k == "OS")
-                    .map(|(_, v)| v.as_str())
-                    .unwrap_or("");
-                if let Some(os_logo) = modules::asciimodule::get_os_logo_lines(os_name) {
-                    let smol_logo = modules::asciimodule::get_os_logo_lines_smol(os_name);
-                    (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
+            // Determine OS art setting: CLI args override config
+            let os_art_setting = if let Some(ref os_override) = args.os_art {
+                if os_override.is_empty() {
+                    OsArtSetting::Auto
                 } else {
-                    (wide_logo, medium_logo, narrow_logo, None)
+                    OsArtSetting::Specific(os_override.clone())
                 }
-            }
-            OsArtSetting::Specific(ref os_name) => {
-                if let Some(os_logo) = modules::asciimodule::get_os_logo_lines(os_name) {
-                    let smol_logo = modules::asciimodule::get_os_logo_lines_smol(os_name);
-                    (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
-                } else {
-                    (wide_logo, medium_logo, narrow_logo, None)
+            } else {
+                config.os_art.clone()
+            };
+
+            // Apply OS art setting
+            match os_art_setting {
+                OsArtSetting::Disabled => (wide_logo, medium_logo, narrow_logo, None),
+                OsArtSetting::Auto => {
+                    let os_name = core
+                        .lines
+                        .iter()
+                        .find(|(k, _)| k == "OS")
+                        .map(|(_, v)| v.as_str())
+                        .unwrap_or("");
+                    if let Some(os_logo) = modules::asciimodule::get_os_logo_lines(os_name) {
+                        let smol_logo = modules::asciimodule::get_os_logo_lines_smol(os_name);
+                        (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
+                    } else {
+                        (wide_logo, medium_logo, narrow_logo, None)
+                    }
+                }
+                OsArtSetting::Specific(ref os_name) => {
+                    if let Some(os_logo) = modules::asciimodule::get_os_logo_lines(os_name) {
+                        let smol_logo = modules::asciimodule::get_os_logo_lines_smol(os_name);
+                        (os_logo.clone(), os_logo.clone(), os_logo, smol_logo)
+                    } else {
+                        (wide_logo, medium_logo, narrow_logo, None)
+                    }
                 }
             }
         };

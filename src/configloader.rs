@@ -4,6 +4,9 @@
 use std::fs;
 use std::path::PathBuf;
 
+// Embed the default config file at compile time
+const DEFAULT_CONFIG: &str = include_str!("config.toml");
+
 // OS art setting - can be disabled, auto-detect, or specific OS
 #[derive(Debug, Clone)]
 pub enum OsArtSetting {
@@ -58,6 +61,9 @@ impl Default for ColorConfig {
 pub struct Config {
     pub os_art: OsArtSetting,
     pub colors: ColorConfig,
+    pub custom_art: Option<String>,
+    pub image: bool,
+    pub image_path: Option<String>,
 }
 
 impl Default for Config {
@@ -65,6 +71,9 @@ impl Default for Config {
         Self {
             os_art: OsArtSetting::Disabled,
             colors: ColorConfig::default(),
+            custom_art: None,
+            image: false,
+            image_path: None,
         }
     }
 }
@@ -186,6 +195,60 @@ fn parse_config(content: &str) -> Config {
                     let os_name = value.trim_matches('"').to_string();
                     if !os_name.is_empty() {
                         config.os_art = OsArtSetting::Specific(os_name);
+                    }
+                }
+            }
+        }
+
+        // Parse custom_art setting
+        if line.starts_with("custom_art") {
+            if let Some(value) = line.split('=').nth(1) {
+                let value = value.trim();
+                if value.starts_with('"') && value.ends_with('"') {
+                    let path = value.trim_matches('"').to_string();
+                    if !path.is_empty() {
+                        // Expand ~ to home directory
+                        let expanded_path = if path.starts_with("~/") {
+                            if let Ok(home) = std::env::var("HOME") {
+                                path.replacen("~", &home, 1)
+                            } else {
+                                path
+                            }
+                        } else {
+                            path
+                        };
+                        config.custom_art = Some(expanded_path);
+                    }
+                }
+            }
+        }
+
+        // Parse image toggle
+        if line.starts_with("image") && !line.starts_with("image_path") {
+            if let Some(value) = line.split('=').nth(1) {
+                let value = value.trim();
+                config.image = value == "true";
+            }
+        }
+
+        // Parse image_path setting
+        if line.starts_with("image_path") {
+            if let Some(value) = line.split('=').nth(1) {
+                let value = value.trim();
+                if value.starts_with('"') && value.ends_with('"') {
+                    let path = value.trim_matches('"').to_string();
+                    if !path.is_empty() {
+                        // Expand ~ to home directory
+                        let expanded_path = if path.starts_with("~/") {
+                            if let Ok(home) = std::env::var("HOME") {
+                                path.replacen("~", &home, 1)
+                            } else {
+                                path
+                            }
+                        } else {
+                            path
+                        };
+                        config.image_path = Some(expanded_path);
                     }
                 }
             }
