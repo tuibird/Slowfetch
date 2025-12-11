@@ -11,9 +11,9 @@
 # custom_art = "~/.config/slowfetch/my_art.txt"
 
 ## Display image instead of ASCII art (uses Kitty graphics protocol)
-## Set to true and provide image_path to always show an image
+## Set to true to always show an image (uses default Slowfetch image if no path set)
 # image = false
-## use this path to set a custom image for the -i/--image arguments.
+## Optionally set a custom image path (supports ~ for home directory)
 #image_path = "~/.config/slowfetch/image.png"
 
 [colors]

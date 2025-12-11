@@ -94,6 +94,21 @@ fn parse_hex_color(hex: &str) -> Option<(u8, u8, u8)> {
     Some((r, g, b))
 }
 
+// Get the config directory path
+fn get_config_dir() -> Option<PathBuf> {
+    // Prefer XDG_CONFIG_HOME if set
+    if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
+        return Some(PathBuf::from(xdg_config).join("slowfetch"));
+    }
+
+    // Fall back to ~/.config/slowfetch
+    if let Ok(home) = std::env::var("HOME") {
+        return Some(PathBuf::from(&home).join(".config/slowfetch"));
+    }
+
+    None
+}
+
 // Get the config file path, checking common locations
 fn get_config_path() -> Option<PathBuf> {
     // Check XDG_CONFIG_HOME/slowfetch/config.toml first
@@ -121,11 +136,44 @@ fn get_config_path() -> Option<PathBuf> {
     None
 }
 
+// Install the default config file to ~/.config/slowfetch/config.toml
+fn install_default_config() -> Option<PathBuf> {
+    let config_dir = get_config_dir()?;
+    let config_path = config_dir.join("config.toml");
+
+    // Create the config directory if it doesn't exist
+    if !config_dir.exists() {
+        if fs::create_dir_all(&config_dir).is_err() {
+            eprintln!(
+                "Warning: Could not create config directory: {:?}",
+                config_dir
+            );
+            return None;
+        }
+    }
+
+    // Write the default config file
+    if fs::write(&config_path, DEFAULT_CONFIG).is_err() {
+        eprintln!("Warning: Could not write config file: {:?}", config_path);
+        return None;
+    }
+
+    eprintln!("Installed default config to: {:?}", config_path);
+    Some(config_path)
+}
+
 // Load configuration from file
 pub fn load_config() -> Config {
+    // Try to find an existing config file
     let path = match get_config_path() {
         Some(p) => p,
-        None => return Config::default(),
+        None => {
+            // No config found, install the default one
+            match install_default_config() {
+                Some(p) => p,
+                None => return Config::default(),
+            }
+        }
     };
 
     let content = match fs::read_to_string(&path) {

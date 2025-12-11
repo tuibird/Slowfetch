@@ -152,13 +152,13 @@ fn main() {
     let userspace = Section::new("Userspace", userspace_lines);
 
     // Check if image mode is requested (CLI arg or config) AND terminal supports it
-    let use_image = args.image.is_some() || (config.image && config.image_path.is_some());
+    let use_image = args.image.is_some() || config.image;
 
     if use_image && image::supports_kitty_graphics() {
         // Determine image path:
         // 1. CLI arg with explicit path takes highest priority
         // 2. CLI arg empty (-i/--image) uses config.image_path if set, else default
-        // 3. Config image=true uses config.image_path
+        // 3. Config image=true uses config.image_path if set, else default
         let image_path = if let Some(ref image_arg) = args.image {
             if image_arg.is_empty() {
                 // CLI flag without path - use config image_path if available
@@ -179,8 +179,12 @@ fn main() {
                 std::path::PathBuf::from(image_arg)
             }
         } else {
-            // Config image=true, use config image_path (already expanded in configloader)
-            std::path::PathBuf::from(config.image_path.as_ref().unwrap())
+            // Config image=true, use config image_path if set, else default
+            if let Some(ref config_path) = config.image_path {
+                std::path::PathBuf::from(config_path)
+            } else {
+                image::get_default_image_path()
+            }
         };
 
         // Draw image layout (imagerender handles all the logic)
@@ -196,7 +200,12 @@ fn main() {
                 (custom_art.clone(), custom_art.clone(), custom_art, None)
             } else {
                 // Custom art file not found, fall back to default
-                (wide_logo.clone(), medium_logo.clone(), narrow_logo.clone(), None)
+                (
+                    wide_logo.clone(),
+                    medium_logo.clone(),
+                    narrow_logo.clone(),
+                    None,
+                )
             }
         } else {
             // Determine OS art setting: CLI args override config
