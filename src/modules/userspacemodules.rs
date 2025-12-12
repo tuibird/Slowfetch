@@ -4,7 +4,6 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use std::thread;
 
 use crate::helpers::{capitalize, get_dms_theme, get_noctalia_scheme};
 
@@ -58,15 +57,6 @@ pub fn shell() -> String {
 pub fn packages() -> String {
     let mut counts: Vec<String> = Vec::new();
 
-    // Spawn flatpak count in separate thread (runs in parallel with other checks)
-    // the thinking here most people have packages + flatpacks, so why not just get this out of the way
-    let flatpak_handle = thread::spawn(|| {
-        fs::read_dir("/var/lib/flatpak/app").ok().and_then(|entries| {
-            let count = entries.filter(|e| e.is_ok()).count();
-            if count > 0 { Some(format!("  {}", count)) } else { None }
-        })
-    });
-
     // Pacman - count directories in /var/lib/pacman/local/
     if let Ok(entries) = fs::read_dir("/var/lib/pacman/local") {
         let count = entries.filter(|e| e.is_ok()).count();
@@ -98,9 +88,12 @@ pub fn packages() -> String {
         }
     }
 
-    // Collect flatpak result (maintains display order after rpm)
-    if let Some(s) = flatpak_handle.join().ok().flatten() {
-        counts.push(s);
+   // Flatpak - count installed applications
+    if let Ok(entries) = fs::read_dir("/var/lib/flatpak/app") {
+        let count = entries.filter(|e| e.is_ok()).count();
+        if count > 0 {
+            counts.push(format!("  {}", count));
+        }
     }
 
     // Nix - count packages in user profile
@@ -142,6 +135,30 @@ pub fn packages() -> String {
 
 // Get the Window Manager (using /proc instead of subprocess)
 pub fn wm() -> String {
+    // Check environment variables first - much faster than /proc scan
+    if let Ok(desktop) = env::var("XDG_CURRENT_DESKTOP") {
+        // Map common desktop values to their WM names
+        let wm = match desktop.to_lowercase().as_str() {
+            "hyprland" => "Hyprland",
+            "sway" => "Sway",
+            "kde" | "plasma" => "KWin",
+            "gnome" => "Mutter",
+            "xfce" => "Xfwm4",
+            "i3" => "i3",
+            "bspwm" => "bspwm",
+            "awesome" => "Awesome",
+            "qtile" => "Qtile",
+            "niri" => "Niri",
+            _ => return desktop,
+        };
+        return wm.to_string();
+    }
+
+    if let Ok(session) = env::var("DESKTOP_SESSION") {
+        return capitalize(&session);
+    }
+
+    // Fallback: scan /proc for WM processes
     // Known WMs to search for (search term -> display name)
     let wm_list = [
         ("mutter", "Mutter"),
@@ -174,13 +191,14 @@ pub fn wm() -> String {
         ("gamescope", "Gamescope"),
     ];
 
-    // Read /proc directly instead of spawning ps | grep (saves 3ish ms)
+    // Read /proc directly instead of spawning ps | grep (saves 0.3ish ms)
     let proc_path = Path::new("/proc");
     if let Ok(entries) = fs::read_dir(proc_path) {
         for entry in entries.flatten() {
+            // Fast check: first byte must be a digit (PID directories)
             let name = entry.file_name();
-            // Only check numeric directories (PIDs)
-            if !name.to_string_lossy().chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            let name_bytes = name.as_encoded_bytes();
+            if name_bytes.is_empty() || !name_bytes[0].is_ascii_digit() {
                 continue;
             }
 
@@ -193,14 +211,6 @@ pub fn wm() -> String {
                 }
             }
         }
-    }
-
-    // Fallback to environment variables
-    if let Ok(wm) = env::var("XDG_CURRENT_DESKTOP") {
-        return capitalize(&wm);
-    }
-    if let Ok(wm) = env::var("DESKTOP_SESSION") {
-        return capitalize(&wm);
     }
 
     "unknown".to_string()
@@ -232,13 +242,23 @@ pub fn terminal() -> String {
 
 // Get the active UI/Shell, i dont know what to call this shit because i already used shell for the terminal shell
 pub fn ui() -> String {
-    // Read /proc directly instead of spawning ps, saves like 3-4ms
+    // Fast path: check env vars for common desktop shells
+    if let Ok(desktop) = env::var("XDG_CURRENT_DESKTOP") {
+        match desktop.to_lowercase().as_str() {
+            "kde" | "plasma" => return "Plasma Shell".to_string(),
+            "gnome" => return "Gnome Shell".to_string(),
+            _ => {}
+        }
+    }
+
+    // Scan /proc for custom shells (noctalia, dms, waybar) - i really dont want to do this but i cant think of another way rn
     let proc_path = Path::new("/proc");
     if let Ok(entries) = fs::read_dir(proc_path) {
         for entry in entries.flatten() {
+            // Fast check: first byte must be a digit (PID directories)
             let name = entry.file_name();
-            // Only check numeric directories (PIDs)
-            if !name.to_string_lossy().chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            let name_bytes = name.as_encoded_bytes();
+            if name_bytes.is_empty() || !name_bytes[0].is_ascii_digit() {
                 continue;
             }
 
@@ -262,7 +282,7 @@ pub fn ui() -> String {
                     return name;
                 }
 
-                //i know this janky but idk
+                //i know this janky but idk, its a fallback
                 if cmdline.contains("plasmashell") {
                     return "Plasma Shell".to_string();
                 }

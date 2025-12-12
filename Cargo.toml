@@ -6,7 +6,7 @@ edition = "2024"
 [profile.release]
 opt-level = 3
 lto = true  # Link Time Optimization
-debug = false
+debug = true
 codegen-units = 1  # Reduce the number of codegen units for more optimization
 panic = "abort"
 
@@ -15,3 +15,6 @@ clap = { version = "4.5.53", features = ["derive"] }
 inkline = "1.0"
 tintify = "1.0"
 kitty_image = "0.1"
+
+[profile.bench]
+debug = true
