@@ -1,7 +1,8 @@
 // Helper functions
 
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
 use std::sync::OnceLock;
 use crate::modules::fontmodule::{find_font, is_nerd_font};
 
@@ -67,11 +68,21 @@ pub fn get_pci_database() -> &'static Option<PciDatabase> {
     })
 }
 
-// Helper to read the first line of a file, yeah ik this dumb dont @ me
+// Helper to read the first line of a file using buffered I/O
+// Only reads until first newline instead of entire file
 pub fn read_first_line(path: &str) -> Option<String> {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|s| s.lines().next().map(|l| l.to_string()))
+    let file = File::open(path).ok()?;
+    let mut reader = BufReader::new(file);
+    let mut line = String::new();
+    reader.read_line(&mut line).ok()?;
+    // Trim trailing newline
+    if line.ends_with('\n') {
+        line.pop();
+        if line.ends_with('\r') {
+            line.pop();
+        }
+    }
+    Some(line)
 }
 
 // Helper to capitalize the first letter of a string.

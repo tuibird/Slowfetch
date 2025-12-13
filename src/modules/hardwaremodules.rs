@@ -1,7 +1,8 @@
 // Hardware information modules for Slowfetch.
 // Contains functions hardware, what else did you expect idiot
 
-use std::fs;
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
 use std::process::Command;
 
 use crate::cache;
@@ -25,29 +26,37 @@ pub fn cpu() -> String {
 }
 
 // Fetch CPU info fresh (no cache)
+// Uses BufReader to stop reading after finding model name (avoids reading entire /proc/cpuinfo)
 fn cpu_fresh() -> String {
-    let model = if let Ok(content) = fs::read_to_string("/proc/cpuinfo") {
-        content
-            .lines()
-            .find(|line| line.starts_with("model name"))
-            .and_then(|line| line.split(':').nth(1))
-            .map(|name| {
-                let words: Vec<&str> = name.split_whitespace().collect();
-                // Find where GPU info starts (e.g., "with Radeon Graphics", "w/ Intel UHD")
-                let gpu_start = words.iter().position(|&w| {
-                    w.eq_ignore_ascii_case("with") || w.eq_ignore_ascii_case("w/")
-                });
-                let words = match gpu_start {
-                    Some(idx) => &words[..idx],
-                    None => &words[..],
-                };
-                words
-                    .iter()
-                    .filter(|&&w| !w.ends_with("-Core") && w != "Processor")
-                    .copied()
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
+    let model = if let Ok(file) = File::open("/proc/cpuinfo") {
+        let reader = BufReader::new(file);
+        let mut found_model: Option<String> = None;
+
+        for line in reader.lines().map_while(Result::ok) {
+            if line.starts_with("model name") {
+                if let Some(name) = line.split(':').nth(1) {
+                    let words: Vec<&str> = name.split_whitespace().collect();
+                    // Find where GPU info starts (e.g., "with Radeon Graphics", "w/ Intel UHD")
+                    let gpu_start = words.iter().position(|&w| {
+                        w.eq_ignore_ascii_case("with") || w.eq_ignore_ascii_case("w/")
+                    });
+                    let words = match gpu_start {
+                        Some(idx) => &words[..idx],
+                        None => &words[..],
+                    };
+                    found_model = Some(
+                        words
+                            .iter()
+                            .filter(|&&w| !w.ends_with("-Core") && w != "Processor")
+                            .copied()
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    );
+                    break; // Stop reading after finding model name
+                }
+            }
+        }
+        found_model
     } else {
         None
     };
@@ -70,25 +79,32 @@ fn cpu_fresh() -> String {
 }
 
 // Get memory usage as a visual bar, 10 blocks = 100% usage
+// Uses BufReader to stop reading after finding MemTotal and MemAvailable
 pub fn memory() -> String {
-    let mut total = 0;
-    let mut available = 0;
-    if let Ok(content) = fs::read_to_string("/proc/meminfo") {
-        for line in content.lines() {
+    let mut total: u64 = 0;
+    let mut available: u64 = 0;
+
+    if let Ok(file) = File::open("/proc/meminfo") {
+        let reader = BufReader::new(file);
+
+        for line in reader.lines().map_while(Result::ok) {
             if line.starts_with("MemTotal:") {
                 if let Some(val) = line.split_whitespace().nth(1) {
-                    total = val.parse::<u64>().unwrap_or(0);
+                    total = val.parse().unwrap_or(0);
                 }
             } else if line.starts_with("MemAvailable:") {
                 if let Some(val) = line.split_whitespace().nth(1) {
-                    available = val.parse::<u64>().unwrap_or(0);
+                    available = val.parse().unwrap_or(0);
                 }
             }
+            // MemTotal is line 1, MemAvailable is line 3 in /proc/meminfo
+            // Stop reading once we have both values
             if total > 0 && available > 0 {
                 break;
             }
         }
     }
+
     if total > 0 {
         let used = total - available;
         let usage_percent = (used as f64 / total as f64) * 100.0;
@@ -280,57 +296,94 @@ fn gpu_from_lspci() -> Option<String> {
     None
 }
 
-// Get storage usage for all physical disks.
-// and hopefully lump em together or something, idk i only have one ssd.
+// Get storage usage for all physical disks using statvfs syscall.
+// Reads /proc/mounts and uses statvfs for each real filesystem - much faster than spawning df
 pub fn storage() -> String {
-    if let Ok(output) = Command::new("df").arg("-B1").output() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut total_bytes = 0;
-        let mut used_bytes = 0;
-        let mut seen_fs = std::collections::HashSet::new();
+    let mut total_bytes: u64 = 0;
+    let mut used_bytes: u64 = 0;
+    let mut seen_devices = std::collections::HashSet::new();
 
-        // Skip header
-        for line in stdout.lines().skip(1) {
+    // Read /proc/mounts to find mounted filesystems
+    if let Ok(file) = File::open("/proc/mounts") {
+        let reader = BufReader::new(file);
+
+        for line in reader.lines().map_while(Result::ok) {
             let parts: Vec<&str> = line.split_whitespace().collect();
-            // df output: Filesystem 1B-blocks Used Available ...
-            if parts.len() >= 3 {
-                let filesystem = parts[0];
-                // Filter for real disks: starts with /dev/ and not loop
-                if filesystem.starts_with("/dev/") && !filesystem.contains("/loop") {
-                    // Avoid double counting if mounted multiple times
-                    if seen_fs.insert(filesystem) {
-                        let total = parts[1].parse::<u64>().unwrap_or(0);
-                        let used = parts[2].parse::<u64>().unwrap_or(0);
-
-                        total_bytes += total;
-                        used_bytes += used;
-                    }
-                }
-            }
-        }
-
-        if total_bytes > 0 {
-            let usage_percent = (used_bytes as f64 / total_bytes as f64) * 100.0;
-            let bar = create_bar(usage_percent);
-
-            // Convert to GB (decimal: 1 GB = 1,000,000,000 bytes)
-            let used_gb = used_bytes as f64 / 1_000_000_000.0;
-            let total_gb = total_bytes as f64 / 1_000_000_000.0;
-
-            // Use TB for total if >= 1000GB, frees up horizontal line space
-            if total_gb >= 1000.0 {
-                let total_tb = total_gb / 1000.0;
-                // Trim .00 if it's a whole number (e.g., 1.00TB -> 1TB)
-                let total_str = if (total_tb - total_tb.round()).abs() < 0.005 {
-                    format!("{}TB", total_tb.round() as u64)
-                } else {
-                    format!("{:.2}TB", total_tb)
-                };
-                return format!("{} {:.0}GB/{}", bar, used_gb, total_str);
+            if parts.len() < 2 {
+                continue;
             }
 
-            return format!("{} {:.0}GB/{:.0}GB", bar, used_gb, total_gb);
+            let device = parts[0];
+            let mount_point = parts[1];
+
+            // Filter for real disks: starts with /dev/ and not loop devices
+            if !device.starts_with("/dev/") || device.contains("/loop") {
+                continue;
+            }
+
+            // Avoid double counting if device mounted multiple times
+            if !seen_devices.insert(device.to_string()) {
+                continue;
+            }
+
+            // Use statvfs syscall to get filesystem stats
+            if let Some((total, used)) = get_fs_stats(mount_point) {
+                total_bytes += total;
+                used_bytes += used;
+            }
         }
     }
+
+    if total_bytes > 0 {
+        let usage_percent = (used_bytes as f64 / total_bytes as f64) * 100.0;
+        let bar = create_bar(usage_percent);
+
+        // Convert to GB (decimal: 1 GB = 1,000,000,000 bytes)
+        let used_gb = used_bytes as f64 / 1_000_000_000.0;
+        let total_gb = total_bytes as f64 / 1_000_000_000.0;
+
+        // Use TB for total if >= 1000GB, frees up horizontal line space
+        if total_gb >= 1000.0 {
+            let total_tb = total_gb / 1000.0;
+            // Trim .00 if it's a whole number (e.g., 1.00TB -> 1TB)
+            let total_str = if (total_tb - total_tb.round()).abs() < 0.005 {
+                format!("{}TB", total_tb.round() as u64)
+            } else {
+                format!("{:.2}TB", total_tb)
+            };
+            return format!("{} {:.0}GB/{}", bar, used_gb, total_str);
+        }
+
+        return format!("{} {:.0}GB/{:.0}GB", bar, used_gb, total_gb);
+    }
     "unknown".to_string()
+}
+
+// Get filesystem stats using statvfs syscall
+// Returns (total_bytes, used_bytes) or None on failure
+fn get_fs_stats(path: &str) -> Option<(u64, u64)> {
+    use std::ffi::CString;
+    use std::mem::MaybeUninit;
+
+    let c_path = CString::new(path).ok()?;
+    let mut stat: MaybeUninit<libc::statvfs> = MaybeUninit::uninit();
+
+    // SAFETY: statvfs is a standard POSIX syscall, c_path is valid null-terminated string
+    let result = unsafe { libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) };
+
+    if result != 0 {
+        return None;
+    }
+
+    // SAFETY: statvfs succeeded, stat is now initialized
+    let stat = unsafe { stat.assume_init() };
+
+    let block_size = stat.f_frsize as u64;
+    let total_blocks = stat.f_blocks as u64;
+    let free_blocks = stat.f_bfree as u64;
+
+    let total = total_blocks * block_size;
+    let used = (total_blocks - free_blocks) * block_size;
+
+    Some((total, used))
 }

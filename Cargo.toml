@@ -15,6 +15,7 @@ clap = { version = "4.5.53", features = ["derive"] }
 inkline = "1.0"
 tintify = "1.0"
 kitty_image = "0.1"
+libc = "0.2"
 
 [profile.bench]
 debug = true

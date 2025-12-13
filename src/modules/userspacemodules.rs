@@ -9,53 +9,48 @@ use crate::helpers::{capitalize, get_dms_theme, get_noctalia_scheme};
 
 /// Get the active shell with version.
 pub fn shell() -> String {
-    let shell_path = env::var("SHELL").unwrap_or_else(|_| "unknown".to_string());
-    let shell_name = shell_path
-        .split('/')
-        .last()
-        .unwrap_or("unknown")
-        .to_string();
+    let shell_path = match env::var("SHELL") {
+        Ok(p) => p,
+        Err(_) => return "unknown".to_string(),
+    };
 
-    if shell_name == "unknown" {
-        return shell_name;
-    }
+    let shell_name = match shell_path.rsplit('/').next() {
+        Some(name) if !name.is_empty() => name,
+        _ => return "unknown".to_string(),
+    };
 
-    // Try to get version by running shell --version, cross your fingers
+    // Try to get version by running shell --version
     let version = Command::new(&shell_path)
         .arg("--version")
         .output()
         .ok()
         .and_then(|output| {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let first_line = stdout.lines().next().unwrap_or("");
+            // Find first line directly in bytes to avoid full UTF-8 conversion
+            let stdout = &output.stdout;
+            let first_line_end = stdout.iter().position(|&b| b == b'\n').unwrap_or(stdout.len());
+            let first_line = std::str::from_utf8(&stdout[..first_line_end]).ok()?;
+
             // Extract version number (e.g., "5.2.26" from "bash 5.2.26(1)-release")
             first_line
-                .split_whitespace()
-                .find(|word| {
-                    word.chars()
-                        .next()
-                        .map(|c| c.is_ascii_digit())
-                        .unwrap_or(false)
-                })
+                .split_ascii_whitespace()
+                .find(|word| word.as_bytes().first().map_or(false, |b| b.is_ascii_digit()))
                 .map(|v| {
-                    // Clean up version string
-                    v.split(|c: char| c == '(' || c == '-')
-                        .next()
-                        .unwrap_or(v)
-                        .to_string()
+                    // Clean up version string - find first ( or -
+                    let end = v.find(|c: char| c == '(' || c == '-').unwrap_or(v.len());
+                    v[..end].to_string()
                 })
         });
 
     match version {
-        Some(v) => format!("{} {}", capitalize(&shell_name), v),
-        None => capitalize(&shell_name),
+        Some(v) => format!("{} {}", capitalize(shell_name), v),
+        None => capitalize(shell_name),
     }
 }
 
 // Get the total number of installed packages.
 // Supports pacman aka Arch, hopefully supports debian and fedora but idk, im not setting up a vm to test sorry
 pub fn packages() -> String {
-    let mut counts: Vec<String> = Vec::new();
+    let mut counts: Vec<String> = Vec::with_capacity(4);
 
     // Pacman - count directories in /var/lib/pacman/local/
     if let Ok(entries) = fs::read_dir("/var/lib/pacman/local") {
@@ -65,14 +60,12 @@ pub fn packages() -> String {
         }
     }
 
-    // dpkg (Debian/Ubuntu) - count lines in /var/lib/dpkg/status with "Status: install ok installed"
-    if let Ok(content) = fs::read_to_string("/var/lib/dpkg/status") {
-        let count = content
-            .lines()
-            .filter(|line| line == &"Status: install ok installed")
-            .count();
+    // dpkg (Debian/Ubuntu) - count occurrences of status line using byte search
+    if let Ok(content) = fs::read("/var/lib/dpkg/status") {
+        const NEEDLE: &[u8] = b"\nStatus: install ok installed\n";
+        let count = content.windows(NEEDLE.len()).filter(|w| *w == NEEDLE).count();
         if count > 0 {
-            counts.push(format!(" {}", count));
+            counts.push(format!(" {}", count));
         }
     }
 
@@ -81,48 +74,45 @@ pub fn packages() -> String {
         || Path::new("/var/lib/rpm/Packages").exists()
     {
         if let Ok(output) = Command::new("rpm").arg("-qa").output() {
-            let count = String::from_utf8_lossy(&output.stdout).lines().count();
+            // Count newlines in bytes directly - faster than UTF-8 conversion
+            let count = output.stdout.iter().filter(|&&b| b == b'\n').count();
             if count > 0 {
-                counts.push(format!(" {}", count));
+                counts.push(format!(" {}", count));
             }
         }
     }
 
-   // Flatpak - count installed applications
+    // Flatpak - count installed applications
     if let Ok(entries) = fs::read_dir("/var/lib/flatpak/app") {
         let count = entries.filter(|e| e.is_ok()).count();
         if count > 0 {
-            counts.push(format!("  {}", count));
+            counts.push(format!("  {}", count));
         }
     }
 
     // Nix - count packages in user profile
-    if let Some(home) = env::var("HOME").ok() {
+    if let Ok(home) = env::var("HOME") {
         let nix_profile = format!("{}/.nix-profile/manifest.nix", home);
         if Path::new(&nix_profile).exists() {
             // Count packages via nix-env -q
             if let Ok(output) = Command::new("nix-env").arg("-q").output() {
-                let count = String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .filter(|l| !l.is_empty()) //hopefully counting non empty lines
-                    .count();
+                // Count non-empty lines via byte splitting
+                let count = output.stdout.split(|&b| b == b'\n').filter(|l| !l.is_empty()).count();
                 if count > 0 {
-                    counts.push(format!(" {}", count));
+                    counts.push(format!(" {}", count));
                 }
             }
         }
     }
 
     // XBPS (Void Linux) - count directories in /var/db/xbps/
-    if Path::new("/var/db/xbps").exists() {
-        if let Ok(entries) = fs::read_dir("/var/db/xbps") {
-            let count = entries
-                .filter_map(|e| e.ok())
-                .filter(|e| e.path().is_dir())
-                .count();
-            if count > 0 {
-                counts.push(format!(" {}", count));
-            }
+    if let Ok(entries) = fs::read_dir("/var/db/xbps") {
+        let count = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().map_or(false, |ft| ft.is_dir()))
+            .count();
+        if count > 0 {
+            counts.push(format!(" {}", count));
         }
     }
 
@@ -267,7 +257,7 @@ pub fn ui() -> String {
                 if cmdline.contains("noctalia-shell") {
                     let mut name = "Noctalia Shell".to_string();
                     if let Some(scheme) = get_noctalia_scheme() {
-                        name = format!("{} |  {}", name, capitalize(&scheme));
+                        name = format!("{} |  {}", name, capitalize(&scheme));
                     }
                     return name;
                 }
@@ -277,7 +267,7 @@ pub fn ui() -> String {
                         let formatted_theme = theme
                             .replace("cat-", "Catppuccin (")
                             + if theme.starts_with("cat-") { ")" } else { "" };
-                        name = format!("{} |  {}", name, capitalize(&formatted_theme));
+                        name = format!("{} |  {}", name, capitalize(&formatted_theme));
                     }
                     return name;
                 }
@@ -316,7 +306,7 @@ pub fn editor() -> String {
     };
 
     match (visual.as_deref().and_then(format_editor), editor.as_deref().and_then(format_editor)) {
-        (Some(v), Some(e)) if v != e => format!("󰍹 {} |  {}", v, e),
+        (Some(v), Some(e)) if v != e => format!("󰍹 {} |  {}", v, e),
         (Some(v), _) => v,
         (None, Some(e)) => e,
         (None, None) => String::new()
