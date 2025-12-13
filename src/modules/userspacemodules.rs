@@ -318,7 +318,7 @@ pub fn editor() -> String {
     };
 
     match (visual.as_deref().and_then(format_editor), editor.as_deref().and_then(format_editor)) {
-        (Some(v), Some(e)) if v != e => format!("󰍹 {} |  {}", v, e),
+        (Some(v), Some(e)) if v != e => format!("󰍹 {} |  {}", v, e),
         (Some(v), _) => v,
         (None, Some(e)) => e,
         (None, None) => String::new()
