@@ -197,7 +197,17 @@ pub fn build_sections_lines(sections: &[Section], target_width: Option<usize>) -
             section
                 .lines
                 .iter()
-                .map(|(key, value)| format!("{}: {}", color_key(key), color_value(value)))
+                .map(|(key, value)| {
+                    if value.is_empty() {
+                        // Key-only line with colon (e.g., "Display:")
+                        format!("{}:", color_key(key))
+                    } else if key.starts_with('├') || key.starts_with('╰') {
+                        // Tree branch entries (no colon)
+                        format!("{} {}", color_key(key), color_value(value))
+                    } else {
+                        format!("{}: {}", color_key(key), color_value(value))
+                    }
+                })
                 .collect()
         })
         .collect();

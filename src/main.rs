@@ -91,10 +91,8 @@ fn main() {
         hardware_lines.push(("Battery".to_string(), battery));
     }
 
-    let screen = screen_handler.join().unwrap_or_else(|_| "error".into());
-    if screen != "unknown" {
-        hardware_lines.push(("Display".to_string(), screen));
-    }
+    let screen_entries = screen_handler.join().unwrap_or_else(|_| vec![]);
+    hardware_lines.extend(screen_entries);
 
     let hardware = Section::new("Hardware", hardware_lines);
 

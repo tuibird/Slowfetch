@@ -516,7 +516,8 @@ pub fn laptop_battery() -> String {
 }
 
 // Get screen resolution and refresh rate using xrandr
-pub fn screen() -> String {
+// Returns a Vec of (key, value) pairs for each monitor, primary first
+pub fn screen() -> Vec<(String, String)> {
     let output = Command::new("xrandr")
         .arg("--current")
         .output()
@@ -524,11 +525,23 @@ pub fn screen() -> String {
 
     if let Some(out) = output {
         let stdout = String::from_utf8_lossy(&out.stdout);
-        let mut screens = Vec::new();
+        // Store (is_primary, display_string)
+        let mut screens: Vec<(bool, String)> = Vec::new();
+        let mut current_is_primary = false;
+        let mut current_is_portrait = false;
 
         for line in stdout.lines() {
+            // Check for output connection line (e.g., "DP-3 connected primary 2560x1440...")
+            if line.contains(" connected") {
+                current_is_primary = line.contains(" primary ");
+                // Portrait mode indicated by "left" or "right" rotation before the parentheses
+                // The part in parentheses lists available rotations, not current rotation
+                let before_paren = line.split('(').next().unwrap_or(line);
+                current_is_portrait =
+                    before_paren.contains(" left") || before_paren.contains(" right");
+            }
             // Look for lines indicating the active mode (contains *)
-            if line.contains('*') {
+            else if line.contains('*') {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 {
                     let res = parts[0];
@@ -539,21 +552,41 @@ pub fn screen() -> String {
                         .chars()
                         .filter(|c| c.is_digit(10) || *c == '.')
                         .collect();
-                    
+
+                    // Orientation icon: 󰆠 for landscape, 󰆡 for portrait
+                    let icon = if current_is_portrait { "󰆡" } else { "󰏠" };
+
                     // Parse as float for rounding
-                    if let Ok(rate_f) = rate.parse::<f64>() {
-                         screens.push(format!("{} @ {}Hz", res, rate_f.round() as u64));
+                    let display_str = if let Ok(rate_f) = rate.parse::<f64>() {
+                        format!("{} {} @ {}Hz", icon, res, rate_f.round() as u64)
                     } else {
-                         screens.push(format!("{} @ {}Hz", res, rate));
-                    }
+                        format!("{} {} @ {}Hz", icon, res, rate)
+                    };
+                    screens.push((current_is_primary, display_str));
                 }
             }
         }
 
+        // Sort so primary monitor comes first
+        screens.sort_by(|a, b| b.0.cmp(&a.0));
+
         if !screens.is_empty() {
-             return screens.join(", ");
+            if screens.len() == 1 {
+                return vec![("Display".to_string(), screens[0].1.clone())];
+            }
+            // Multiple monitors: header line + tree-style entries
+            let mut result = vec![("Displays".to_string(), String::new())];
+            let last_idx = screens.len() - 1;
+            for (i, (_, s)) in screens.iter().enumerate() {
+                if i == last_idx {
+                    result.push(("╰─".to_string(), s.clone()));
+                } else {
+                    result.push(("├─".to_string(), s.clone()));
+                }
+            }
+            return result;
         }
     }
-    
-    "unknown".to_string()
+
+    vec![]
 }
