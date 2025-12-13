@@ -88,7 +88,7 @@ pub fn packages() -> String {
     if let Ok(entries) = fs::read_dir("/var/lib/flatpak/app") {
         let count = entries.filter(|e| e.is_ok()).count();
         if count > 0 {
-            counts.push(format!("  {}", count));
+            counts.push(format!(" {}", count));
         }
     }
 
@@ -269,7 +269,7 @@ pub fn ui() -> String {
                 if memmem::find(&cmdline, b"noctalia-shell").is_some() {
                     let mut name = "Noctalia Shell".to_string();
                     if let Some(scheme) = get_noctalia_scheme() {
-                        name = format!("{} |  {}", name, capitalize(&scheme));
+                        name = format!("{} |  {}", name, capitalize(&scheme));
                     }
                     return name;
                 }
@@ -279,7 +279,7 @@ pub fn ui() -> String {
                         let formatted_theme = theme
                             .replace("cat-", "Catppuccin (")
                             + if theme.starts_with("cat-") { ")" } else { "" };
-                        name = format!("{} |  {}", name, capitalize(&formatted_theme));
+                        name = format!("{} |  {}", name, capitalize(&formatted_theme));
                     }
                     return name;
                 }

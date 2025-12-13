@@ -465,3 +465,95 @@ fn get_fs_stats(path: &str) -> Option<(u64, u64)> {
 
     Some((total, used))
 }
+
+// Get battery status if device is a laptop (chassis check)
+pub fn laptop_battery() -> String {
+    // Check chassis type to determine if it's a laptop
+    // 8: Portable, 9: Laptop, 10: Notebook, 11: Hand Held, 12: Docking Station,
+    // 14: Sub Notebook, 30: Tablet, 31: Convertible, 32: Detachable
+    let is_laptop = read_first_line("/sys/class/dmi/id/chassis_type")
+        .and_then(|t| t.trim().parse::<u32>().ok())
+        .map(|t| matches!(t, 8 | 9 | 10 | 11 | 12 | 14 | 30 | 31 | 32))
+        .unwrap_or(false);
+
+    if !is_laptop {
+        return "unknown".to_string();
+    }
+
+    // Find first available battery (usually BAT0 or BAT1)
+    let power_supply = std::path::Path::new("/sys/class/power_supply");
+    if let Ok(entries) = fs::read_dir(power_supply) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+
+            if name_str.starts_with("BAT") {
+                let path = entry.path();
+
+                // Get capacity
+                let capacity = read_first_line(path.join("capacity").to_str().unwrap_or(""))
+                    .and_then(|c| c.parse::<u8>().ok())
+                    .unwrap_or(0);
+
+                // Get status
+                let status = read_first_line(path.join("status").to_str().unwrap_or(""))
+                    .unwrap_or_else(|| "Unknown".to_string());
+
+                let status_icon = match status.as_str() {
+                    "Charging" => "󰂐",
+                    "Discharging" => "󰂍",
+                    _ => &status,
+                };
+
+                let bar = create_bar(capacity as f64);
+
+                return format!("{} {}% {}", bar, capacity, status_icon);
+            }
+        }
+    }
+
+    "unknown".to_string()
+}
+
+// Get screen resolution and refresh rate using xrandr
+pub fn screen() -> String {
+    let output = Command::new("xrandr")
+        .arg("--current")
+        .output()
+        .ok();
+
+    if let Some(out) = output {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let mut screens = Vec::new();
+
+        for line in stdout.lines() {
+            // Look for lines indicating the active mode (contains *)
+            if line.contains('*') {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let res = parts[0];
+                    // Rate often looks like "60.00*+" or "144.00*" or "59.95*"
+                    // Filter out non-numeric chars except dot
+                    let rate_str = parts[1];
+                    let rate: String = rate_str
+                        .chars()
+                        .filter(|c| c.is_digit(10) || *c == '.')
+                        .collect();
+                    
+                    // Parse as float for rounding
+                    if let Ok(rate_f) = rate.parse::<f64>() {
+                         screens.push(format!("{} @ {}Hz", res, rate_f.round() as u64));
+                    } else {
+                         screens.push(format!("{} @ {}Hz", res, rate));
+                    }
+                }
+            }
+        }
+
+        if !screens.is_empty() {
+             return screens.join(", ");
+        }
+    }
+    
+    "unknown".to_string()
+}

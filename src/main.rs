@@ -51,6 +51,7 @@ fn main() {
     let packages_handler = thread::spawn(modules::userspacemodules::packages);
     let shell_handler = thread::spawn(modules::userspacemodules::shell);
     let font_handler = thread::spawn(modules::fontmodule::find_font);
+    let screen_handler = thread::spawn(modules::hardwaremodules::screen);
 
     // Fast operations - just file reads or env var checks, no benefit from threading
     let os = modules::coremodules::os();
@@ -58,6 +59,7 @@ fn main() {
     let uptime = modules::coremodules::uptime();
     let cpu = modules::hardwaremodules::cpu();
     let memory = modules::hardwaremodules::memory();
+    let battery = modules::hardwaremodules::laptop_battery();
     let terminal = modules::userspacemodules::terminal();
     let wm = modules::userspacemodules::wm();
     let ui = modules::userspacemodules::ui();
@@ -78,15 +80,23 @@ fn main() {
         ],
     );
 
-    let hardware = Section::new(
-        "Hardware",
-        vec![
-            ("CPU".to_string(), cpu),
-            ("GPU".to_string(), gpu_handler.join().unwrap_or_else(|_| "error".into())),
-            ("Memory".to_string(), memory),
-            ("Storage".to_string(), storage_handler.join().unwrap_or_else(|_| "error".into())),
-        ],
-    );
+    let mut hardware_lines = vec![
+        ("CPU".to_string(), cpu),
+        ("GPU".to_string(), gpu_handler.join().unwrap_or_else(|_| "error".into())),
+        ("Memory".to_string(), memory),
+        ("Storage".to_string(), storage_handler.join().unwrap_or_else(|_| "error".into())),
+    ];
+
+    if battery != "unknown" {
+        hardware_lines.push(("Battery".to_string(), battery));
+    }
+
+    let screen = screen_handler.join().unwrap_or_else(|_| "error".into());
+    if screen != "unknown" {
+        hardware_lines.push(("Display".to_string(), screen));
+    }
+
+    let hardware = Section::new("Hardware", hardware_lines);
 
     let mut userspace_lines = vec![
         ("Packages".to_string(), packages_handler.join().unwrap_or_else(|_| "error".into())),
