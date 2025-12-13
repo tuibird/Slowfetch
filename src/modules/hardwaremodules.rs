@@ -5,6 +5,8 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::process::Command;
 
+use memchr::{memchr_iter, memmem};
+
 use crate::cache;
 use crate::helpers::{create_bar, get_pci_database, read_first_line};
 
@@ -164,19 +166,30 @@ fn gpu_from_vulkaninfo() -> Option<String> {
         .arg("--summary")
         .output()
         .ok()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = &output.stdout;
 
-    for line in stdout.lines() {
-        if line.contains("deviceName") {
-            // Format: "	deviceName         = AMD Radeon RX 9070 XT (RADV GFX1201)"
-            let name = line.split('=').nth(1)?.trim();
-            // Remove the parenthetical driver info
-            let name = name.split('(').next().unwrap_or(name).trim();
-            // Skip CPU/APU devices (they also show up in vulkaninfo)
-            if !name.is_empty() && !name.contains("Processor") && !name.contains("llvmpipe") {
-                return Some(name.to_string());
-            }
-        }
+    // Find "deviceName" using SIMD-accelerated search
+    let needle = b"deviceName";
+    let pos = memmem::find(stdout, needle)?;
+
+    // Find the '=' after deviceName
+    let after_needle = &stdout[pos + needle.len()..];
+    let eq_pos = memchr::memchr(b'=', after_needle)?;
+    let after_eq = &after_needle[eq_pos + 1..];
+
+    // Find end of line
+    let line_end = memchr::memchr(b'\n', after_eq).unwrap_or(after_eq.len());
+    let name_bytes = &after_eq[..line_end];
+
+    // Convert to string and trim
+    let name = std::str::from_utf8(name_bytes).ok()?.trim();
+
+    // Remove the parenthetical driver info
+    let name = name.split('(').next().unwrap_or(name).trim();
+
+    // Skip CPU/APU devices (they also show up in vulkaninfo)
+    if !name.is_empty() && !name.contains("Processor") && !name.contains("llvmpipe") {
+        return Some(name.to_string());
     }
     None
 }
@@ -184,18 +197,28 @@ fn gpu_from_vulkaninfo() -> Option<String> {
 // Get GPU name from glxinfo (requires X11/Wayland with GL)
 fn gpu_from_glxinfo() -> Option<String> {
     let output = Command::new("glxinfo").output().ok()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = &output.stdout;
 
-    for line in stdout.lines() {
-        if line.contains("OpenGL renderer") {
-            // Format: "OpenGL renderer string: AMD Radeon RX 9070 XT (radeonsi, ...)"
-            let renderer = line.split(':').nth(1)?.trim();
-            // Remove the parenthetical info if present
-            let name = renderer.split('(').next().unwrap_or(renderer).trim();
-            if !name.is_empty() && name != "llvmpipe" {
-                return Some(name.to_string());
-            }
-        }
+    // Find "OpenGL renderer" using SIMD-accelerated search
+    let needle = b"OpenGL renderer";
+    let pos = memmem::find(stdout, needle)?;
+
+    // Find the ':' after the needle
+    let after_needle = &stdout[pos + needle.len()..];
+    let colon_pos = memchr::memchr(b':', after_needle)?;
+    let after_colon = &after_needle[colon_pos + 1..];
+
+    // Find end of line
+    let line_end = memchr::memchr(b'\n', after_colon).unwrap_or(after_colon.len());
+    let renderer_bytes = &after_colon[..line_end];
+
+    // Convert to string and trim
+    let renderer = std::str::from_utf8(renderer_bytes).ok()?.trim();
+
+    // Remove the parenthetical info if present
+    let name = renderer.split('(').next().unwrap_or(renderer).trim();
+    if !name.is_empty() && name != "llvmpipe" {
+        return Some(name.to_string());
     }
     None
 }
@@ -212,26 +235,33 @@ fn gpu_from_sysfs() -> Option<String> {
 
     for entry in fs::read_dir(drm_path).ok()?.flatten() {
         let name = entry.file_name();
-        let name_str = name.to_string_lossy();
+        let name_bytes = name.as_encoded_bytes();
 
         // Only process card entries, not card0-DP-1 etc
-        if !name_str.starts_with("card") || name_str.contains('-') {
+        // Check starts with "card" and doesn't contain '-'
+        if name_bytes.len() < 5
+            || &name_bytes[..4] != b"card"
+            || memchr::memchr(b'-', name_bytes).is_some()
+        {
             continue;
         }
 
         let uevent_path = entry.path().join("device/uevent");
-        let uevent = fs::read_to_string(&uevent_path).ok()?;
+        let uevent = fs::read(&uevent_path).ok()?;
 
-        // Parse PCI_ID from uevent (format: "1002:7550")
-        let pci_id_line = uevent.lines().find(|l| l.starts_with("PCI_ID="))?;
-        let pci_id = pci_id_line.trim_start_matches("PCI_ID=");
-        let parts: Vec<&str> = pci_id.split(':').collect();
-        if parts.len() != 2 {
-            continue;
-        }
+        // Find PCI_ID using SIMD search
+        let pci_id_needle = b"PCI_ID=";
+        let pos = memmem::find(&uevent, pci_id_needle)?;
+        let after_needle = &uevent[pos + pci_id_needle.len()..];
 
-        let vendor_id = parts[0].to_lowercase();
-        let device_id = parts[1].to_lowercase();
+        // Find end of line
+        let line_end = memchr::memchr(b'\n', after_needle).unwrap_or(after_needle.len());
+        let pci_id = std::str::from_utf8(&after_needle[..line_end]).ok()?;
+
+        // Find colon separator
+        let colon_pos = memchr::memchr(b':', pci_id.as_bytes())?;
+        let vendor_id = pci_id[..colon_pos].to_lowercase();
+        let device_id = pci_id[colon_pos + 1..].to_lowercase();
 
         // O(1) HashMap lookup instead of O(n) linear scan
         let (vendor_name, devices) = pci_db.get(&vendor_id)?;
@@ -257,30 +287,59 @@ fn gpu_from_sysfs() -> Option<String> {
 // Get GPU name from lspci -mm (final fallback)
 fn gpu_from_lspci() -> Option<String> {
     let output = Command::new("lspci").arg("-mm").output().ok()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = &output.stdout;
 
     // lspci -mm format: Slot Class Vendor Device SVendor SDevice PhySlot Rev ProgIf
     // Fields are quoted, e.g.: 03:00.0 "VGA compatible controller" "AMD" "Navi 48" ...
-    for line in stdout.lines() {
-        // Look for VGA or 3D controller
-        if line.contains("VGA compatible controller") || line.contains("3D controller") {
-            // Parse the quoted fields
-            let fields: Vec<&str> = line
-                .split('"')
-                .enumerate()
-                .filter_map(|(i, s)| if i % 2 == 1 { Some(s) } else { None })
-                .collect();
 
-            // fields[0] = class, fields[1] = vendor, fields[2] = device name
-            if fields.len() >= 3 {
-                let vendor = fields[1];
-                let device = fields[2];
+    // Search for VGA or 3D controller lines using SIMD
+    let vga_needle = b"VGA compatible controller";
+    let d3_needle = b"3D controller";
 
-                // Skip integrated/CPU graphics if possible
-                if device.contains("Processor") || device.contains("Integrated") {
-                    continue;
-                }
+    let mut search_pos = 0;
+    while search_pos < stdout.len() {
+        // Find next potential GPU line
+        let vga_pos = memmem::find(&stdout[search_pos..], vga_needle);
+        let d3_pos = memmem::find(&stdout[search_pos..], d3_needle);
 
+        let match_pos = match (vga_pos, d3_pos) {
+            (Some(v), Some(d)) => Some(v.min(d)),
+            (Some(v), None) => Some(v),
+            (None, Some(d)) => Some(d),
+            (None, None) => None,
+        };
+
+        let Some(rel_pos) = match_pos else { break };
+        let abs_pos = search_pos + rel_pos;
+
+        // Find line start (search backwards for newline)
+        let line_start = stdout[..abs_pos]
+            .iter()
+            .rposition(|&b| b == b'\n')
+            .map(|p| p + 1)
+            .unwrap_or(0);
+
+        // Find line end
+        let line_end = memchr::memchr(b'\n', &stdout[abs_pos..])
+            .map(|p| abs_pos + p)
+            .unwrap_or(stdout.len());
+
+        let line = std::str::from_utf8(&stdout[line_start..line_end]).ok()?;
+
+        // Parse the quoted fields
+        let fields: Vec<&str> = line
+            .split('"')
+            .enumerate()
+            .filter_map(|(i, s)| if i % 2 == 1 { Some(s) } else { None })
+            .collect();
+
+        // fields[0] = class, fields[1] = vendor, fields[2] = device name
+        if fields.len() >= 3 {
+            let vendor = fields[1];
+            let device = fields[2];
+
+            // Skip integrated/CPU graphics if possible
+            if !device.contains("Processor") && !device.contains("Integrated") {
                 // Shorten common vendor names
                 let vendor_short = match vendor {
                     v if v.contains("Advanced Micro Devices") || v.contains("AMD") => "AMD",
@@ -292,6 +351,8 @@ fn gpu_from_lspci() -> Option<String> {
                 return Some(format!("{} {}", vendor_short, device));
             }
         }
+
+        search_pos = line_end + 1;
     }
     None
 }
@@ -303,26 +364,43 @@ pub fn storage() -> String {
     let mut used_bytes: u64 = 0;
     let mut seen_devices = std::collections::HashSet::new();
 
-    // Read /proc/mounts to find mounted filesystems
-    if let Ok(file) = File::open("/proc/mounts") {
-        let reader = BufReader::new(file);
+    // Read /proc/mounts as bytes for SIMD-accelerated parsing
+    if let Ok(content) = fs::read("/proc/mounts") {
+        let mut start = 0;
+        for end in memchr_iter(b'\n', &content) {
+            let line = &content[start..end];
+            start = end + 1;
 
-        for line in reader.lines().map_while(Result::ok) {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() < 2 {
+            // Find first space (device ends here)
+            let Some(space1) = memchr::memchr(b' ', line) else {
                 continue;
-            }
+            };
+            let device = &line[..space1];
 
-            let device = parts[0];
-            let mount_point = parts[1];
+            // Find second space (mount point ends here)
+            let rest = &line[space1 + 1..];
+            let Some(space2) = memchr::memchr(b' ', rest) else {
+                continue;
+            };
+            let mount_point_bytes = &rest[..space2];
 
             // Filter for real disks: starts with /dev/ and not loop devices
-            if !device.starts_with("/dev/") || device.contains("/loop") {
+            if device.len() < 5
+                || &device[..5] != b"/dev/"
+                || memmem::find(device, b"/loop").is_some()
+            {
                 continue;
             }
 
+            let Ok(device_str) = std::str::from_utf8(device) else {
+                continue;
+            };
+            let Ok(mount_point) = std::str::from_utf8(mount_point_bytes) else {
+                continue;
+            };
+
             // Avoid double counting if device mounted multiple times
-            if !seen_devices.insert(device.to_string()) {
+            if !seen_devices.insert(device_str.to_string()) {
                 continue;
             }
 

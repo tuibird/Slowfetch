@@ -4,6 +4,9 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::sync::OnceLock;
+
+use memchr::{memchr_iter, memmem};
+
 use crate::modules::fontmodule::{find_font, is_nerd_font};
 
 // Cache for font detection - only computed once
@@ -23,41 +26,52 @@ static PCI_DB: OnceLock<Option<PciDatabase>> = OnceLock::new();
 
 pub fn get_pci_database() -> &'static Option<PciDatabase> {
     PCI_DB.get_or_init(|| {
-        let content = fs::read_to_string("/usr/share/hwdata/pci.ids")
-            .or_else(|_| fs::read_to_string("/usr/share/misc/pci.ids"))
+        let content = fs::read("/usr/share/hwdata/pci.ids")
+            .or_else(|_| fs::read("/usr/share/misc/pci.ids"))
             .ok()?;
 
         let mut db: PciDatabase = HashMap::new();
-        let mut current_vendor: Option<(String, String)> = None;
+        let mut current_vendor_id: Option<String> = None;
 
-        for line in content.lines() {
-            // Skip comments and empty lines
-            if line.starts_with('#') || line.is_empty() {
+        // Use memchr for SIMD-accelerated newline finding
+        let mut start = 0;
+        for end in memchr_iter(b'\n', &content) {
+            let line = &content[start..end];
+            start = end + 1;
+
+            // Skip empty lines and comments
+            if line.is_empty() || line[0] == b'#' {
                 continue;
             }
 
-            // Vendor line: starts with hex digit, no leading whitespace
-            if !line.starts_with('\t') && line.len() >= 4 {
-                if let Some(vendor_id) = line.get(..4) {
-                    if vendor_id.chars().all(|c| c.is_ascii_hexdigit()) {
-                        let vendor_name = line.get(4..).map(|s| s.trim().to_string()).unwrap_or_default();
-                        current_vendor = Some((vendor_id.to_lowercase(), vendor_name));
-                        db.insert(vendor_id.to_lowercase(), (line.get(4..).map(|s| s.trim().to_string()).unwrap_or_default(), HashMap::new()));
-                    }
+            // Vendor line: starts with hex digit, no leading tab
+            if line[0] != b'\t' && line.len() >= 4 {
+                if line[..4].iter().all(|b| b.is_ascii_hexdigit()) {
+                    let vendor_id = std::str::from_utf8(&line[..4])
+                        .ok()?
+                        .to_ascii_lowercase();
+                    let vendor_name = std::str::from_utf8(&line[4..])
+                        .ok()
+                        .map(|s| s.trim().to_string())
+                        .unwrap_or_default();
+                    db.insert(vendor_id.clone(), (vendor_name, HashMap::new()));
+                    current_vendor_id = Some(vendor_id);
                 }
             }
-            // Device line: starts with single tab + hex digit
-            else if line.starts_with('\t') && !line.starts_with("\t\t") {
-                if let Some((vendor_id, _)) = &current_vendor {
-                    let trimmed = line.trim_start_matches('\t');
-                    if trimmed.len() >= 4 {
-                        if let Some(device_id) = trimmed.get(..4) {
-                            if device_id.chars().all(|c| c.is_ascii_hexdigit()) {
-                                let device_name = trimmed.get(4..).map(|s| s.trim().to_string()).unwrap_or_default();
-                                if let Some((_, devices)) = db.get_mut(vendor_id) {
-                                    devices.insert(device_id.to_lowercase(), device_name);
-                                }
-                            }
+            // Device line: starts with single tab (not double tab for subsystem)
+            else if line[0] == b'\t' && line.get(1) != Some(&b'\t') && line.len() >= 5 {
+                if let Some(ref vendor_id) = current_vendor_id {
+                    let trimmed = &line[1..]; // Skip the tab
+                    if trimmed[..4].iter().all(|b| b.is_ascii_hexdigit()) {
+                        let device_id = std::str::from_utf8(&trimmed[..4])
+                            .ok()?
+                            .to_ascii_lowercase();
+                        let device_name = std::str::from_utf8(&trimmed[4..])
+                            .ok()
+                            .map(|s| s.trim().to_string())
+                            .unwrap_or_default();
+                        if let Some((_, devices)) = db.get_mut(vendor_id) {
+                            devices.insert(device_id, device_name);
                         }
                     }
                 }
@@ -138,22 +152,29 @@ pub fn get_noctalia_scheme() -> Option<String> {
     let home = std::env::var("HOME").ok()?;
     let path = format!("{}/.config/noctalia/settings.json", home);
 
-    if let Ok(content) = fs::read_to_string(path) {
-        for line in content.lines() {
-            if line.contains("\"predefinedScheme\"") {
-                let parts: Vec<&str> = line.split(':').collect();
-                if parts.len() >= 2 {
-                    let value = parts[1].trim();
-                    // Remove bullshit
-                    let clean_value = value.trim_matches(|c| c == '"' || c == ',' || c == ' ');
-                    // Return None for default scheme
-                    if clean_value.to_lowercase().contains("default") {
-                        return None;
-                    }
-                    return Some(clean_value.to_string());
-                }
-            }
+    if let Ok(content) = fs::read(&path) {
+        // Find "predefinedScheme" using SIMD search
+        let needle = b"\"predefinedScheme\"";
+        let pos = memmem::find(&content, needle)?;
+
+        // Find the ':' after the key
+        let after_key = &content[pos + needle.len()..];
+        let colon_pos = memchr::memchr(b':', after_key)?;
+        let after_colon = &after_key[colon_pos + 1..];
+
+        // Find the value (between quotes)
+        let quote1 = memchr::memchr(b'"', after_colon)?;
+        let after_quote1 = &after_colon[quote1 + 1..];
+        let quote2 = memchr::memchr(b'"', after_quote1)?;
+        let value_bytes = &after_quote1[..quote2];
+
+        let value = std::str::from_utf8(value_bytes).ok()?;
+
+        // Return None for default scheme
+        if value.to_lowercase().contains("default") {
+            return None;
         }
+        return Some(value.to_string());
     }
     None
 }
@@ -162,46 +183,37 @@ pub fn get_dms_theme() -> Option<String> {
     let home = std::env::var("HOME").ok()?;
     let path = format!("{}/.config/DankMaterialShell/settings.json", home);
 
-    if let Ok(content) = fs::read_to_string(&path) {
-        let mut theme_name: Option<String> = None;
-        let mut custom_theme_file: Option<String> = None;
+    // Helper to extract JSON string value after a key using SIMD search
+    fn extract_json_value(content: &[u8], key: &[u8]) -> Option<String> {
+        let pos = memmem::find(content, key)?;
+        let after_key = &content[pos + key.len()..];
+        let colon_pos = memchr::memchr(b':', after_key)?;
+        let after_colon = &after_key[colon_pos + 1..];
+        let quote1 = memchr::memchr(b'"', after_colon)?;
+        let after_quote1 = &after_colon[quote1 + 1..];
+        let quote2 = memchr::memchr(b'"', after_quote1)?;
+        let value_bytes = &after_quote1[..quote2];
+        std::str::from_utf8(value_bytes).ok().map(|s| s.to_string())
+    }
 
-        for line in content.lines() {
-            if line.contains("\"currentThemeName\"") {
-                let parts: Vec<&str> = line.split(':').collect();
-                if parts.len() >= 2 {
-                    let value = parts[1].trim();
-                    let clean_value = value.trim_matches(|c| c == '"' || c == ',' || c == ' ');
-                    if clean_value.to_lowercase().contains("default") {
-                        return None;
-                    }
-                    theme_name = Some(clean_value.to_string());
-                }
-            }
-            if line.contains("\"customThemeFile\"") {
-                let parts: Vec<&str> = line.split(':').collect();
-                if parts.len() >= 2 {
-                    let value = parts[1..].join(":");
-                    let clean_value = value.trim().trim_matches(|c| c == '"' || c == ',' || c == ' ');
-                    custom_theme_file = Some(clean_value.to_string());
-                }
-            }
-        }
+    if let Ok(content) = fs::read(&path) {
+        // Find theme name
+        let theme_name = extract_json_value(&content, b"\"currentThemeName\"");
 
-        // If theme is "custom", read the custom theme file for the actual name
         if let Some(ref name) = theme_name {
+            // Return None for default scheme
+            if name.to_lowercase().contains("default") {
+                return None;
+            }
+
+            // If theme is "custom", read the custom theme file for the actual name
             if name.to_lowercase() == "custom" {
-                if let Some(custom_path) = custom_theme_file {
-                    if let Ok(custom_content) = fs::read_to_string(&custom_path) {
-                        for line in custom_content.lines() {
-                            if line.contains("\"name\"") {
-                                let parts: Vec<&str> = line.split(':').collect();
-                                if parts.len() >= 2 {
-                                    let value = parts[1].trim();
-                                    let clean_value = value.trim_matches(|c| c == '"' || c == ',' || c == ' ');
-                                    return Some(clean_value.to_string());
-                                }
-                            }
+                if let Some(custom_path) = extract_json_value(&content, b"\"customThemeFile\"") {
+                    if let Ok(custom_content) = fs::read(&custom_path) {
+                        // Look for "name" but be careful not to match "currentThemeName"
+                        // Search for standalone "name" key
+                        if let Some(custom_name) = extract_json_value(&custom_content, b"\"name\"") {
+                            return Some(custom_name);
                         }
                     }
                 }

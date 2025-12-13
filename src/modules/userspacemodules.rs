@@ -5,6 +5,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use memchr::{memchr_iter, memmem};
+
 use crate::helpers::{capitalize, get_dms_theme, get_noctalia_scheme};
 
 /// Get the active shell with version.
@@ -60,10 +62,10 @@ pub fn packages() -> String {
         }
     }
 
-    // dpkg (Debian/Ubuntu) - count occurrences of status line using byte search
+    // dpkg (Debian/Ubuntu) - count occurrences of status line using SIMD-accelerated search
     if let Ok(content) = fs::read("/var/lib/dpkg/status") {
         const NEEDLE: &[u8] = b"\nStatus: install ok installed\n";
-        let count = content.windows(NEEDLE.len()).filter(|w| *w == NEEDLE).count();
+        let count = memmem::find_iter(&content, NEEDLE).count();
         if count > 0 {
             counts.push(format!(" {}", count));
         }
@@ -74,8 +76,8 @@ pub fn packages() -> String {
         || Path::new("/var/lib/rpm/Packages").exists()
     {
         if let Ok(output) = Command::new("rpm").arg("-qa").output() {
-            // Count newlines in bytes directly - faster than UTF-8 conversion
-            let count = output.stdout.iter().filter(|&&b| b == b'\n').count();
+            // Count newlines using SIMD-accelerated memchr
+            let count = memchr_iter(b'\n', &output.stdout).count();
             if count > 0 {
                 counts.push(format!(" {}", count));
             }
@@ -96,8 +98,15 @@ pub fn packages() -> String {
         if Path::new(&nix_profile).exists() {
             // Count packages via nix-env -q
             if let Ok(output) = Command::new("nix-env").arg("-q").output() {
-                // Count non-empty lines via byte splitting
-                let count = output.stdout.split(|&b| b == b'\n').filter(|l| !l.is_empty()).count();
+                // Count non-empty lines using SIMD-accelerated memchr
+                let stdout = &output.stdout;
+                let newline_count = memchr_iter(b'\n', stdout).count();
+                // If output ends with newline, count equals lines; otherwise add 1 for last line
+                let count = if stdout.last() == Some(&b'\n') || stdout.is_empty() {
+                    newline_count
+                } else {
+                    newline_count + 1
+                };
                 if count > 0 {
                     counts.push(format!(" {}", count));
                 }
@@ -150,35 +159,36 @@ pub fn wm() -> String {
 
     // Fallback: scan /proc for WM processes
     // Known WMs to search for (search term -> display name)
-    let wm_list = [
-        ("mutter", "Mutter"),
-        ("kwin", "KWin"),
-        ("sway", "Sway"),
-        ("hyprland", "Hyprland"),
-        ("Hyprland", "Hyprland"),
-        ("river", "River"),
-        ("wayfire", "Wayfire"),
-        ("labwc", "LabWC"),
-        ("dwl", "dwl"),
-        ("niri", "Niri"),
-        ("openbox", "Openbox"),
-        ("i3", "i3"),
-        ("bspwm", "bspwm"),
-        ("dwm", "dwm"),
-        ("awesome", "Awesome"),
-        ("xfwm4", "Xfwm4"),
-        ("marco", "Marco"),
-        ("metacity", "Metacity"),
-        ("compiz", "Compiz"),
-        ("enlightenment", "Enlightenment"),
-        ("fluxbox", "Fluxbox"),
-        ("icewm", "IceWM"),
-        ("xmonad", "XMonad"),
-        ("qtile", "Qtile"),
-        ("herbstluftwm", "herbstluftwm"),
-        ("weston", "Weston"),
-        ("cage", "Cage"),
-        ("gamescope", "Gamescope"),
+    // Pre-compiled searchers for SIMD-accelerated matching
+    let wm_list: &[(&[u8], &str)] = &[
+        (b"mutter", "Mutter"),
+        (b"kwin", "KWin"),
+        (b"sway", "Sway"),
+        (b"hyprland", "Hyprland"),
+        (b"Hyprland", "Hyprland"),
+        (b"river", "River"),
+        (b"wayfire", "Wayfire"),
+        (b"labwc", "LabWC"),
+        (b"dwl", "dwl"),
+        (b"niri", "Niri"),
+        (b"openbox", "Openbox"),
+        (b"i3", "i3"),
+        (b"bspwm", "bspwm"),
+        (b"dwm", "dwm"),
+        (b"awesome", "Awesome"),
+        (b"xfwm4", "Xfwm4"),
+        (b"marco", "Marco"),
+        (b"metacity", "Metacity"),
+        (b"compiz", "Compiz"),
+        (b"enlightenment", "Enlightenment"),
+        (b"fluxbox", "Fluxbox"),
+        (b"icewm", "IceWM"),
+        (b"xmonad", "XMonad"),
+        (b"qtile", "Qtile"),
+        (b"herbstluftwm", "herbstluftwm"),
+        (b"weston", "Weston"),
+        (b"cage", "Cage"),
+        (b"gamescope", "Gamescope"),
     ];
 
     // Read /proc directly instead of spawning ps | grep (saves 0.3ish ms)
@@ -193,9 +203,10 @@ pub fn wm() -> String {
             }
 
             let cmdline_path = entry.path().join("cmdline");
-            if let Ok(cmdline) = fs::read_to_string(&cmdline_path) {
-                for (wm_search, wm_display) in &wm_list {
-                    if cmdline.contains(wm_search) {
+            // Read as bytes to avoid UTF-8 conversion overhead
+            if let Ok(cmdline) = fs::read(&cmdline_path) {
+                for (wm_search, wm_display) in wm_list {
+                    if memmem::find(&cmdline, wm_search).is_some() {
                         return wm_display.to_string();
                     }
                 }
@@ -253,15 +264,16 @@ pub fn ui() -> String {
             }
 
             let cmdline_path = entry.path().join("cmdline");
-            if let Ok(cmdline) = fs::read_to_string(&cmdline_path) {
-                if cmdline.contains("noctalia-shell") {
+            // Read as bytes to avoid UTF-8 conversion overhead
+            if let Ok(cmdline) = fs::read(&cmdline_path) {
+                if memmem::find(&cmdline, b"noctalia-shell").is_some() {
                     let mut name = "Noctalia Shell".to_string();
                     if let Some(scheme) = get_noctalia_scheme() {
                         name = format!("{} |  {}", name, capitalize(&scheme));
                     }
                     return name;
                 }
-                if cmdline.contains("dms") {
+                if memmem::find(&cmdline, b"dms").is_some() {
                     let mut name = "DMS".to_string();
                     if let Some(theme) = get_dms_theme() {
                         let formatted_theme = theme
@@ -273,13 +285,13 @@ pub fn ui() -> String {
                 }
 
                 //i know this janky but idk, its a fallback
-                if cmdline.contains("plasmashell") {
+                if memmem::find(&cmdline, b"plasmashell").is_some() {
                     return "Plasma Shell".to_string();
                 }
-                if cmdline.contains("gnome-shell") {
+                if memmem::find(&cmdline, b"gnome-shell").is_some() {
                     return "Gnome Shell".to_string();
                 }
-                if cmdline.contains("waybar") {
+                if memmem::find(&cmdline, b"waybar").is_some() {
                     return "Custom Waybar setup".to_string();
                 }
             }
