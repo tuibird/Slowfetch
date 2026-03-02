@@ -270,8 +270,16 @@ fn gpu_from_vulkaninfo(allow_igpu: bool) -> Option<String> {
             continue;
         }
 
+        let type_needle = b"deviceType";
+        let is_integrated = if let Some(type_pos) = memmem::find(&stdout[search_pos..], type_needle) {
+            let type_line = &stdout[search_pos + type_pos .. search_pos + type_pos + 100];
+            type_line.windows(14).any(|w| w == b"INTEGRATED_GPU")
+        } else {
+            false
+        };
+
         // Skip integrated GPU unless allowed
-        if !allow_igpu && name.contains("Processor") {
+        if !allow_igpu && is_integrated || name.contains("Processor") {
             search_pos = pos + needle.len();
             continue;
         }
